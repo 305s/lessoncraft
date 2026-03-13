@@ -1,26 +1,53 @@
 /**
- * detector.js — v5
+ * detector.js — v6
  *
- * Structure confirmed from real PDF:
+ * Arabic-textbook structure detection strategy
+ * ─────────────────────────────────────────────
  *
- *   Chapter cover  → page with standalone chapter number + title (e.g. "الفصل ٧")
- *   Warmup         → "التهيئة" — chapter intro, stored as lesson "intro", NOT lesson 1
- *   Lesson pages   → marked "{lesson} - {chapter}" at top e.g. "1 - 7" or "٢ - ٨"
- *   Mid-term test  → "فصتنم رابتخا" — stored as lesson "midtest", not a real lesson
+ * The textbook has three kinds of landmark pages:
  *
- * TOC pairing rule (verified):
- *   Title line has Arabic + 2 chapter nums (1–20)
- *   Next lines have page nums (>=10), sometimes split across lines
- *   Sort both ascending → zip → chapter→startPage map
+ *   1. Chapter cover  — standalone page whose TOP LINES contain
+ *                       "الفصل N" (or reversed "لصفلا N") in a large font.
+ *                       The line(s) following it are the chapter title.
+ *
+ *   2. Warmup         — "التهيئة" anywhere in the page text.
+ *                       Stored as lesson "intro" (NOT lesson 1).
+ *
+ *   3. Lesson pages   — HEADER LINE (first 1-4 lines only) contains
+ *                       the pattern  "lessonNum - chapterNum"
+ *                       e.g.  "1 - 7"  or  "٢ - ٨"  (after digit normalisation).
+ *                       Restricting the search to the header prevents false
+ *                       matches from exercise numbers inside the page body.
+ *
+ *   4. Mid-term test  — "منتصف فصل" / "اختبار منتصف الفصل" anywhere.
+ *                       Stored as lesson "midtest".
+ *
+ * Pass 1  — TOC parser:  builds chapter→startPage map from dotted-leader pages.
+ * Pass 1b — Cover scan:  detects chapter cover pages to supplement/confirm TOC
+ *                        and extract chapter titles.
+ * Pass 2  — Body sweep:  annotates every body page with {chapter, lesson, section}.
+ * Pass 3  — Build tree:  groups annotated pages into the final chapter/lesson tree.
+ *
+ * TOC pairing rule (unchanged from v5, verified on real PDFs):
+ *   Title line has Arabic + 2 chapter nums (1–20).
+ *   Next lines have page nums (≥10), sometimes split across lines.
+ *   Sort both ascending → zip → chapter→startPage map.
  */
 
 const Detector = (() => {
 
   // ── Patterns ──────────────────────────────────────────────────────────────
 
-  // "1 - 7" or "2-8" or "١ - ٧" (after digit normalization)
-  // Must appear near the top of the page — matched on first 300 chars
-  const LESSON_MARKER = /\b(\d{1,2})\s*-\s*(\d{1,2})\b/;
+  // Lesson-header marker: "lessonNum - chapterNum" — e.g. "1 - 7" or "٢ - ٨"
+  // Checked ONLY against the first 1-4 lines of a page (the header area),
+  // never against the full page text, to eliminate false positives from
+  // exercise / equation numbers in the page body.
+  const LESSON_MARKER = /(?:^|[\s\u0600-\u06FF])(\d{1,2})\s*-\s*(\d{1,2})(?:$|[\s\u0600-\u06FF])/;
+
+  // Chapter cover: "الفصل N" (forward) or "لصفلا N" (reversed visual-order)
+  // or "N الفصل" / "N لصفلا" (when number precedes the word).
+  const CHAPTER_COVER_WORD = /(?:الفصل|لصفلا)/;
+  const CHAPTER_COVER_RE   = /(?:الفصل|لصفلا)\s*(\d{1,2})|(\d{1,2})\s*(?:الفصل|لصفلا)/;
 
   const SECTION_PATTERNS = {
     warmup:    [/التهيئة/, /ةئيهتلا/, /ةُ\s*ئَ\s*يِ\s*هتَّ/, /ةُ\s*ـ+ئَ\s*يِ\s*هتَّ/],
@@ -39,6 +66,7 @@ const Detector = (() => {
   const allNums   = s => [...s.matchAll(/\b(\d+)\b/g)].map(m => parseInt(m[1], 10));
 
   function normalizeDigits(s) {
+    // Convert Arabic-Indic digits (٠-٩) to Western Arabic (0-9)
     return (s || '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660);
   }
 
@@ -54,7 +82,18 @@ const Detector = (() => {
     return null;
   }
 
-  // ── Pass 1: TOC Parser ─────────────────────────────────────────────────────
+  /**
+   * Build the "header text" for a page: join the first few lines
+   * (after digit normalisation) into a single string.
+   * This is the ONLY text used for lesson-marker detection.
+   */
+  function pageHeaderText(page, maxLines = 4) {
+    return normalizeDigits(
+      (page.lines || []).slice(0, maxLines).map(l => l.text).join(' ')
+    );
+  }
+
+  // ── Pass 1: TOC Parser ────────────────────────────────────────────────────
 
   function parseTOC(pages) {
     const chapterMap  = {};
@@ -85,7 +124,7 @@ const Detector = (() => {
         }
         if (!pageNums.length) continue;
 
-        // Sort ascending → pair (matches visual RTL order)
+        // Sort ascending → pair (matches visual RTL order in TOC)
         const sc = [...chNums].sort((a, b) => a - b);
         const sp = [...pageNums].sort((a, b) => a - b);
         sc.forEach((ch, k) => {
@@ -94,12 +133,59 @@ const Detector = (() => {
       }
     }
 
-    console.log('[LessonCraft] Chapter map:', chapterMap);
+    console.log('[LessonCraft] TOC chapter map:', chapterMap);
     console.log('[LessonCraft] TOC pages:', [...tocPageNums]);
     return { chapterMap, tocPageNums };
   }
 
-  // ── Page→Chapter range map ─────────────────────────────────────────────────
+  // ── Pass 1b: Chapter Cover Scan ───────────────────────────────────────────
+  //
+  // Walk every non-TOC page and detect chapter cover pages.
+  // A cover page satisfies ALL of:
+  //   • Contains CHAPTER_COVER_RE in its top 3 lines (after digit normalisation)
+  //   • The matched chapter number is ≥ 1 and ≤ 30
+  //   • Has ≤ 10 non-empty lines total (cover pages are sparse; body pages have many)
+  //
+  // Returns:
+  //   coverMap  – { chapterNum → { pageNum, title } }
+  //              (title extracted from lines following the chapter-number line)
+
+  function scanCovers(pages, tocPageNums) {
+    const coverMap = {};
+
+    for (const page of pages) {
+      if (tocPageNums.has(page.pageNum)) continue;
+
+      const lines    = page.lines || [];
+      const nonEmpty = lines.filter(l => l.text.trim()).length;
+      if (nonEmpty > 10) continue;  // body pages have many lines; covers have ≤10
+
+      // Check first 3 lines for "الفصل N"
+      const topText = normalizeDigits(lines.slice(0, 3).map(l => l.text).join(' '));
+      if (!CHAPTER_COVER_WORD.test(topText)) continue;
+
+      const m = topText.match(CHAPTER_COVER_RE);
+      if (!m) continue;
+      const chNum = parseInt(m[1] || m[2], 10);
+      if (chNum < 1 || chNum > 30) continue;
+
+      // Extract chapter title: first Arabic-text line(s) that are NOT the chapter number line
+      const titleParts = lines
+        .slice(0, 6)
+        .map(l => l.text.trim())
+        .filter(t => t && !/^\d+$/.test(t) && !CHAPTER_COVER_WORD.test(t));
+      const title = titleParts.join(' ').trim();
+
+      if (!(chNum in coverMap)) {
+        coverMap[chNum] = { pageNum: page.pageNum, title };
+        console.log(`[LessonCraft] Cover: ch${chNum} p${page.pageNum} "${title}"`);
+      }
+    }
+
+    return coverMap;
+  }
+
+  // ── Page→Chapter range map ────────────────────────────────────────────────
 
   function buildPageChapterMap(chapterMap, totalPages) {
     const entries = Object.entries(chapterMap)
@@ -115,61 +201,90 @@ const Detector = (() => {
     return map;
   }
 
-  // ── Pass 2: Page-by-page sweep ─────────────────────────────────────────────
+  // ── Pass 2: Page-by-page sweep ────────────────────────────────────────────
 
-  function sweepBody(pages, chapterMap, tocPageNums) {
-    const pageToChapter = buildPageChapterMap(chapterMap, pages.length);
-    const minPage = Object.keys(chapterMap).length > 0
-      ? Math.min(...Object.values(chapterMap)) : 1;
+  function sweepBody(pages, chapterMap, tocPageNums, coverMap) {
+    // Merge TOC map with cover-scan map: TOC takes precedence for page start,
+    // but cover map fills gaps and provides titles.
+    const mergedChapterMap = { ...chapterMap };
+    for (const [ch, info] of Object.entries(coverMap)) {
+      if (!(ch in mergedChapterMap)) mergedChapterMap[ch] = info.pageNum;
+    }
+
+    const pageToChapter = buildPageChapterMap(mergedChapterMap, pages.length);
+    const minPage = Object.keys(mergedChapterMap).length > 0
+      ? Math.min(...Object.values(mergedChapterMap)) : 1;
 
     let curChapter = null;
-    let curLesson  = null;   // null = warmup/intro, 'midtest' = midterm, number = lesson
+    let curLesson  = null;  // null = warmup/intro; 'midtest' = mid-term; number = lesson
     let curSection = null;
     const annotated = [];
 
     for (const page of pages) {
       // Skip TOC and front-matter
       if (tocPageNums.has(page.pageNum)) continue;
-      if (page.pageNum < minPage) continue;
+      if (page.pageNum < minPage)        continue;
 
       const rawN   = normalizeDigits(page.rawText || '');
-      // Only check top of page for lesson marker (it's always in header area)
-      const topN   = rawN.slice(0, 400);
 
-      // ── 1. Chapter boundary from range map ──
+      // Header text (top 4 lines only) — used exclusively for structural markers.
+      // Restricting to the header prevents lesson-number false-positives from
+      // exercise sequences, equation indices etc. in the page body.
+      const hdrText = pageHeaderText(page, 4);
+
+      // ── 1. Chapter boundary from range map ──────────────────────────────
       if (pageToChapter[page.pageNum] !== undefined) {
         const mapped = pageToChapter[page.pageNum];
         if (mapped !== curChapter) {
           curChapter = mapped;
-          curLesson  = null;   // reset to "intro" state until lesson marker found
+          curLesson  = null;  // reset to "intro" state until a lesson marker is found
           curSection = null;
         }
       }
 
-      // ── 2. Mid-chapter test (check BEFORE lesson marker — midtest pages contain "4-7" etc.) ──
-      if (/فصتنم|لصفلا فصتنم/.test(rawN)) {
+      // ── 2. Chapter cover page — skip it (it's a landmark, not content) ──
+      if (CHAPTER_COVER_WORD.test(hdrText) && CHAPTER_COVER_RE.test(hdrText)) {
+        const cm = hdrText.match(CHAPTER_COVER_RE);
+        if (cm) {
+          const covCh = parseInt(cm[1] || cm[2], 10);
+          if (covCh >= 1 && covCh <= 30) {
+            curChapter = covCh;
+            curLesson  = null;
+            curSection = null;
+            // Don't push this page into annotated — it's structural decoration
+            continue;
+          }
+        }
+      }
+
+      // ── 3. Mid-chapter test ─────────────────────────────────────────────
+      // Check BEFORE lesson marker because mid-test pages contain "4-7" etc.
+      if (/منتصف|فصتنم/.test(rawN)) {
         curLesson  = 'midtest';
         curSection = null;
-        annotated.push({ pageNum: page.pageNum, chapter: curChapter, lesson: curLesson, section: curSection, rawText: page.rawText, lines: page.lines, flagged: page.flagged });
+        annotated.push({
+          pageNum: page.pageNum, chapter: curChapter,
+          lesson: curLesson, section: curSection,
+          rawText: page.rawText, lines: page.lines, flagged: page.flagged,
+        });
         continue;
       }
 
-      // ── 3. Lesson marker "N - M" at top of page ──
-      const lm = topN.match(LESSON_MARKER);
+      // ── 4. Lesson marker in HEADER ONLY ─────────────────────────────────
+      const lm = hdrText.match(LESSON_MARKER);
       if (lm) {
         const n1 = parseInt(lm[1], 10);
         const n2 = parseInt(lm[2], 10);
-        // The chapter number is whichever matches curChapter or is in chapterMap
-        // The lesson number is the other one (always smaller, 1–8 range)
         let lessonNum = null;
-        if (n2 === curChapter || n2 in chapterMap) {
+        // The chapter number is whichever matches curChapter or is in mergedChapterMap
+        if (n2 === curChapter || n2 in mergedChapterMap) {
           lessonNum  = n1;
           curChapter = n2;
-        } else if (n1 === curChapter || n1 in chapterMap) {
+        } else if (n1 === curChapter || n1 in mergedChapterMap) {
           lessonNum  = n2;
           curChapter = n1;
         } else {
-          // Fallback: smaller = lesson, larger = chapter
+          // Fallback: lesson numbers are 1-8, chapter numbers are higher
           lessonNum  = Math.min(n1, n2);
           curChapter = Math.max(n1, n2);
         }
@@ -179,12 +294,12 @@ const Detector = (() => {
         }
       }
 
-      // ── 4. Warmup (التهيئة) — marks intro pages before lesson 1 ──
-      if (curLesson === null && /ةئيهتلا|التهيئة/.test(rawN)) {
+      // ── 5. Warmup — marks intro pages before lesson 1 ───────────────────
+      if (curLesson === null && matchAny(rawN, SECTION_PATTERNS.warmup)) {
         curSection = 'warmup';
       }
 
-      // ── 5. Section detection ──
+      // ── 6. Section detection (only inside numbered lessons) ─────────────
       if (curLesson !== null && curLesson !== 'midtest') {
         for (const line of (page.lines || [])) {
           const sec = detectSection(normalizeDigits(line.text));
@@ -193,31 +308,33 @@ const Detector = (() => {
       }
 
       annotated.push({
-        pageNum: page.pageNum,
-        chapter: curChapter,
-        lesson:  curLesson,
-        section: curSection,
-        rawText: page.rawText,
-        lines:   page.lines,
-        flagged: page.flagged,
+        pageNum:  page.pageNum,
+        chapter:  curChapter,
+        lesson:   curLesson,
+        section:  curSection,
+        rawText:  page.rawText,
+        lines:    page.lines,
+        flagged:  page.flagged,
       });
     }
 
-    return annotated;
+    return { annotated };
   }
 
-  // ── Build Tree ─────────────────────────────────────────────────────────────
+  // ── Pass 3: Build Tree ────────────────────────────────────────────────────
 
-  function buildTree(annotated, metadata = {}) {
+  function buildTree(annotated, metadata = {}, coverMap = {}) {
     const chaptersMap = {};
 
     for (const page of annotated) {
       const chId  = page.chapter ?? 'unknown';
-      // null lesson = intro/warmup pages before lesson 1
       const lesId = page.lesson !== null ? page.lesson : 'intro';
 
-      if (!chaptersMap[chId])
-        chaptersMap[chId] = { id: chId, title: '', lessons: {}, pages: [] };
+      if (!chaptersMap[chId]) {
+        // Use title from cover-scan map if available
+        const coverTitle = coverMap[chId]?.title || '';
+        chaptersMap[chId] = { id: chId, title: coverTitle, lessons: {}, pages: [] };
+      }
       chaptersMap[chId].pages.push(page.pageNum);
 
       const ch = chaptersMap[chId];
@@ -236,6 +353,7 @@ const Detector = (() => {
       if (page.flagged) les.flaggedPages.push(page.pageNum);
 
       const sec = page.section ?? 'content';
+      // Append with a newline separator to keep pages distinct within a section
       les.sections[sec] = (les.sections[sec] || '') + '\n' + page.rawText;
     }
 
@@ -245,10 +363,10 @@ const Detector = (() => {
       .map(ch => ({
         ...ch,
         lessons: Object.values(ch.lessons).sort((a, b) => {
-          if (a.id === 'intro')    return -1;
-          if (b.id === 'intro')    return  1;
-          if (a.id === 'midtest')  return  1;
-          if (b.id === 'midtest')  return -1;
+          if (a.id === 'intro')   return -1;
+          if (b.id === 'intro')   return  1;
+          if (a.id === 'midtest') return  1;
+          if (b.id === 'midtest') return -1;
           return a.id - b.id;
         }),
       }));
@@ -268,8 +386,9 @@ const Detector = (() => {
 
   function detect(pages, metadata = {}) {
     const { chapterMap, tocPageNums } = parseTOC(pages);
-    const annotated = sweepBody(pages, chapterMap, tocPageNums);
-    const tree      = buildTree(annotated, { ...metadata, chapterMap });
+    const coverMap                    = scanCovers(pages, tocPageNums);
+    const { annotated }               = sweepBody(pages, chapterMap, tocPageNums, coverMap);
+    const tree                        = buildTree(annotated, { ...metadata, chapterMap }, coverMap);
     return { tree, annotated, chapterMap, tocPageNums };
   }
 

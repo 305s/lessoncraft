@@ -167,6 +167,8 @@ html, body { height: 100%; overflow: hidden; background: var(--sand); font-famil
 .chapter-item { padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-inline-start: 3px solid transparent; transition: background var(--transition); font-size: .84rem; }
 .chapter-item:hover { background: rgba(21,101,192,.08); }
 .chapter-item.active { background: rgba(21,101,192,.14); border-inline-start-color: var(--gold); font-weight: 600; }
+.ch-num { font-size: .84rem; }
+.ch-title { font-family: var(--font-arabic); font-size: .76rem; color: #455A64; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch-lesson-count { font-size: .64rem; color: #78909C; font-family: var(--font-mono); }
 
 /* lesson column: JS sets top/bottom/left/right */

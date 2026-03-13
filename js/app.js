@@ -268,7 +268,14 @@ const App = (() => {
 
     book.chapters.forEach((ch, idx) => {
       const item = el('div', 'chapter-item' + (idx === currentChapterIdx ? ' active' : ''));
-      item.innerHTML = `<span>${t('chapter')} ${ch.id}</span><span class="ch-lesson-count">${ch.lessons.length} ${t('lessons')}</span>`;
+      const titleLine = ch.title
+        ? `<span class="ch-title">${ch.title}</span>`
+        : '';
+      item.innerHTML = `
+        <span class="ch-num">${t('chapter')} ${ch.id}</span>
+        ${titleLine}
+        <span class="ch-lesson-count">${ch.lessons.length} ${t('lessons')}</span>
+      `;
       item.addEventListener('click', () => {
         currentChapterIdx = idx;
         currentLessonIdx = 0;
@@ -294,7 +301,13 @@ const App = (() => {
 
     chapter.lessons.forEach((les, idx) => {
       const tab = el('button', 'lesson-tab' + (idx === currentLessonIdx ? ' active' : ''));
-      tab.textContent = `${t('lesson')} ${les.id || idx + 1}`;
+      if (les.id === 'intro') {
+        tab.textContent = t('sections.warmup');
+      } else if (les.id === 'midtest') {
+        tab.textContent = les.title || t('sections.review');
+      } else {
+        tab.textContent = `${t('lesson')} ${les.id}`;
+      }
       tab.addEventListener('click', () => {
         currentLessonIdx = idx;
         renderLesson(book);
