@@ -91,6 +91,7 @@ const Parser = (() => {
 
   // ── Page Extraction ───────────────────────────────────────────────────────
 
+  // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
   const ARABIC_LETTER_RE = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
 
   /**
@@ -102,6 +103,10 @@ const Parser = (() => {
     return ARABIC_LETTER_RE.test(text) ? 'rtl' : 'ltr';
   }
 
+  /**
+   * Estimate the minimal horizontal gap (in px) that should introduce a space
+   * between two adjacent items, based on the current item's average glyph width.
+   */
   const spacingThreshold = item =>
     (item.str.length > 0 ? item.width / item.str.length : item.width) * 0.5;
 
