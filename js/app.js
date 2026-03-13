@@ -29,16 +29,16 @@ const App = (() => {
       lesson: 'الدرس',
       chapter: 'الفصل',
       pages: 'الصفحات',
-      sections: {
-        warmup: 'التهيئة', explore: 'الاستكشاف', learn: 'تعلم',
-        example: 'مثال', exercises: 'تدرب', review: 'مراجعة', content: 'المحتوى',
-      },
-      flaggedWarning: 'تحتوي بعض الصفحات على خطوط مخصصة وقد لا يكون النص مقروءاً.',
-      noLessons: 'لم يتم اكتشاف دروس في هذا الفصل.',
-      export: 'تصدير JSON',
-      deleteBook: 'حذف',
-      myBooks: 'كتبي',
-      newBook: 'كتاب جديد',
+       sections: {
+         warmup: 'التهيئة', explore: 'الاستكشاف', learn: 'تعلم',
+         example: 'مثال', exercises: 'تدرب', review: 'مراجعة', content: 'المحتوى',
+       },
+       flaggedWarning: 'تحتوي بعض الصفحات على خطوط مخصصة أو نص مفقود وقد تحتاج إلى OCR.',
+       noLessons: 'لم يتم اكتشاف دروس في هذا الفصل.',
+       export: 'تصدير JSON',
+       deleteBook: 'حذف',
+       myBooks: 'كتبي',
+       newBook: 'كتاب جديد',
       storageUsed: 'مساحة مستخدمة',
       kb: 'ك.ب',
       bookTitle: 'عنوان الكتاب',
@@ -62,11 +62,11 @@ const App = (() => {
       lesson: 'Lesson',
       chapter: 'Chapter',
       pages: 'Pages',
-      sections: {
-        warmup: 'Warm-up', explore: 'Explore', learn: 'Learn',
-        example: 'Example', exercises: 'Exercises', review: 'Review', content: 'Content',
-      },
-      flaggedWarning: 'Some pages use custom fonts — text may not be fully readable.',
+       sections: {
+         warmup: 'Warm-up', explore: 'Explore', learn: 'Learn',
+         example: 'Example', exercises: 'Exercises', review: 'Review', content: 'Content',
+       },
+       flaggedWarning: 'Some pages have custom fonts or missing text — consider running OCR.',
       noLessons: 'No lessons detected in this chapter.',
       export: 'Export JSON',
       deleteBook: 'Delete',
@@ -303,9 +303,9 @@ const App = (() => {
     });
 
     // Lesson body
-    const lesson = chapter.lessons[currentLessonIdx];
-    const content = $('lessonContent');
-    content.innerHTML = '';
+      const lesson = chapter.lessons[currentLessonIdx];
+      const content = $('lessonContent');
+      content.innerHTML = '';
 
     // Flagged warning
     if (lesson.flaggedPages?.length > 0) {
@@ -332,6 +332,7 @@ const App = (() => {
       `;
       content.appendChild(sec);
     }
+    requestAnimationFrame(Layout.apply);
   }
 
   // ── Language Toggle ───────────────────────────────────────────────────────
@@ -341,6 +342,7 @@ const App = (() => {
     document.documentElement.setAttribute('lang', lang);
     document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
     renderAll();
+    Layout.apply();
   }
 
   function renderAll() {

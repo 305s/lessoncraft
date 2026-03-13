@@ -200,7 +200,10 @@ html, body { height: 100%; overflow: hidden; background: var(--sand); font-famil
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding: 16px 20px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; gap: 14px;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 /* ── Content blocks ───────────────────────────────────────── */
