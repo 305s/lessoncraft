@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="LessonCraft — Systematic lesson extraction from Arabic textbooks" />
+  <title>LessonCraft</title>
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- pdf.js (Mozilla) — client-side PDF parsing, no server needed -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Point pdf.js worker to CDN
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span id="appName">LessonCraft</span>
+      <span id="appTagline">استخراج منهجي للدروس من الكتب المدرسية</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="langToggle" class="btn btn-ghost">EN</button>
+    </div>
+  </header>
+
+  <!-- ── Body ────────────────────────────────────────────────────────────── -->
+  <div class="body-grid">
+
+    <!-- ── Sidebar: Book Library ─────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span id="myBooksLabel" class="sidebar-label">كتبي</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button id="newBookBtn" class="btn btn-gold" style="flex:1">كتاب جديد</button>
+          <button id="importBtn" class="btn btn-ghost" style="flex:1">استيراد JSON</button>
+        </div>
+        <span id="storageInfo"></span>
+      </div>
+      <div id="bookList"></div>
+    </aside>
+
+    <!-- ── Main Content ──────────────────────────────────────────────────── -->
+    <main class="main-content">
+
+      <!-- Upload Panel -->
+      <div id="uploadPanel">
+        <h2 id="uploadTitle">ارفع كتاباً</h2>
+
+        <div id="dropzone">
+          <div class="dropzone-icon">📄</div>
+          <p id="uploadHint">اسحب ملف PDF هنا أو انقر للاختيار</p>
+          <input type="file" id="fileInput" accept="application/pdf" style="display:none" />
+        </div>
+
+        <!-- Metadata form (shown after file selected) -->
+        <div id="metaForm" class="hidden">
+          <span id="metaFileName"></span>
+          <div class="form-group">
+            <label id="inputTitleLabel" class="form-label" for="inputTitle">عنوان الكتاب</label>
+            <input id="inputTitle" class="form-input" type="text" placeholder="مثال: رياضيات الصف الخامس الجزء الثاني" />
+          </div>
+          <div class="form-group">
+            <label id="inputGradeLabel" class="form-label" for="inputGrade">الصف</label>
+            <input id="inputGrade" class="form-input" type="text" placeholder="مثال: الخامس الابتدائي" />
+          </div>
+          <button id="metaSubmit" class="btn btn-gold">ابدأ الاستخراج</button>
+        </div>
+
+        <!-- Hidden import input -->
+        <input type="file" id="importInput" accept="application/json" style="display:none" />
+      </div>
+
+      <!-- Progress Panel -->
+      <div id="progressPanel" class="hidden">
+        <div class="progress-track">
+          <div id="progressBar"></div>
+        </div>
+        <span id="progressLabel"></span>
+      </div>
+
+      <!-- Viewer Panel -->
+      <div id="viewerPanel" class="hidden">
+        <div class="viewer-header">
+          <div class="viewer-title-group">
+            <span id="bookTitle"></span>
+            <span id="bookSubtitle"></span>
+          </div>
+          <div class="viewer-actions">
+            <button id="exportBtn" class="btn btn-sage">Export JSON</button>
+            <button id="deleteBtn" class="btn btn-rust">Delete</button>
+          </div>
+        </div>
+
+        <div class="viewer-body">
+          <!-- Chapter list -->
+          <div class="chapter-sidebar">
+            <div class="section-heading" id="chaptersLabel">الفصول</div>
+            <div id="chapterList"></div>
+          </div>
+
+          <!-- Lesson tabs + content -->
+          <div class="lesson-area">
+            <div id="lessonTabs"></div>
+            <div id="lessonContent"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- App modules (order matters) -->
+<script src="js/parser.js"></script>
+<script src="js/detector.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
