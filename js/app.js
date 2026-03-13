@@ -303,9 +303,9 @@ const App = (() => {
     });
 
     // Lesson body
-      const lesson = chapter.lessons[currentLessonIdx];
-      const content = $('lessonContent');
-      content.innerHTML = '';
+    const lesson = chapter.lessons[currentLessonIdx];
+    const content = $('lessonContent');
+    content.innerHTML = '';
 
     // Flagged warning
     if (lesson.flaggedPages?.length > 0) {
