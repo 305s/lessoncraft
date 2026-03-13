@@ -93,7 +93,7 @@ const Parser = (() => {
 
   // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
   const ARABIC_LETTER_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
-  const SPACING_THRESHOLD_MULTIPLIER = 0.5; // half glyph width yields readable word separation without splitting ligatures
+  const SPACING_THRESHOLD_MULTIPLIER = 0.5; // empirically: half glyph width keeps words separated without breaking ligatures in tested textbooks
   const MIN_GLYPH_WIDTH = 0.1; // px — prevents zero-width glyphs from eliminating inter-item spacing
 
   /**
@@ -110,8 +110,9 @@ const Parser = (() => {
    */
   function getSpacingThreshold(item) {
     // Empty strings (e.g., whitespace glyphs) fall back to the raw item width.
-    const avgGlyphWidth = item.str.length === 0 ? item.width : item.width / item.str.length;
-    const safeWidth = Math.max(avgGlyphWidth ?? 0, MIN_GLYPH_WIDTH); // prevent zero-width glyphs from zeroing out the threshold
+    const width = typeof item.width === 'number' ? item.width : 0;
+    const avgGlyphWidth = item.str.length === 0 ? width : width / item.str.length;
+    const safeWidth = Math.max(avgGlyphWidth, MIN_GLYPH_WIDTH); // prevent zero-width glyphs from zeroing out the threshold
     return safeWidth * SPACING_THRESHOLD_MULTIPLIER;
   }
 
