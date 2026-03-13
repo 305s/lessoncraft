@@ -54,6 +54,17 @@ const Parser = (() => {
     return str.replace(/[\uE000-\uF8FF]+/g, '[؟]');
   }
 
+  // Arabic combining marks (tashkil/madd: 0610–061A, 064B–065F, 0670, 06D6–06ED) + tatweel (0640)
+  const HARAKAT_RE = /[\u0610-\u061A\u0640\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+
+  /**
+   * Strip Arabic diacritics (tashkil), madd, and tatweel.
+   * This yields plain text without vowel/elongation marks.
+   */
+  function stripHarakat(str) {
+    return str.replace(HARAKAT_RE, '');
+  }
+
   function cleanText(str) {
     return str
       .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, '') // zero-width + bidi controls
@@ -66,7 +77,8 @@ const Parser = (() => {
     const flagged  = hasPrivateUseGlyphs(rawText);
     const replaced = replacePrivateGlyphs(rawText);
     const normalized = nfkcNormalize(replaced);
-    const cleaned  = cleanText(normalized);
+    const stripped = stripHarakat(normalized);
+    const cleaned  = cleanText(stripped);
     return { text: cleaned, flagged };
   }
 
