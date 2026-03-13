@@ -247,7 +247,7 @@ const App = (() => {
     // Chapter sidebar
     renderChapterList(book);
     renderLesson(book);
-    setTimeout(() => { if (typeof Layout !== "undefined") Layout.apply(); }, 80);
+    setTimeout(Layout.apply, 80);
 
     // Export button
     $('exportBtn').onclick = () => Store.exportJSON(bookId);
@@ -390,45 +390,89 @@ const App = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
+// ── Layout Engine ─────────────────────────────────────────────────────────
+// Sets pixel-exact top/bottom/left/right on every positioned element.
+// Called on load, resize, and after any panel switch.
+// This is the ONLY reliable approach for iOS Safari scroll containers.
 
-// ── Layout engine ─────────────────────────────────────────────────────────
-// Mobile Safari ignores flex/grid height chains. We measure and set px heights
-// explicitly so every scroll container knows its exact available space.
 const Layout = (() => {
-  const TOPBAR_H = 52; // must match --topbar-h in CSS
+  const TOPBAR_H   = 52;   // matches --topbar-h in CSS
+  const SIDEBAR_W  = 220;  // matches --sidebar-w
+  const CHAPTER_W  = 180;  // matches --chapter-w
+  const isRTL = () => document.documentElement.dir === 'rtl';
+
+  function vh() {
+    // visualViewport gives the real available height on mobile
+    // (excludes browser chrome, keyboard, etc.)
+    return window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  }
 
   function apply() {
-    // Use visualViewport if available (accounts for on-screen keyboard on mobile)
-    const vh = (window.visualViewport?.height ?? window.innerHeight);
-    const bodyH = vh - TOPBAR_H;
+    const totalH  = vh();
+    const bodyH   = totalH - TOPBAR_H;   // height below topbar
+    const mainW   = window.innerWidth - SIDEBAR_W;
 
-    // Set .body-grid height
-    const grid = document.querySelector('.body-grid');
-    if (grid) {
-      grid.style.bottom = '0px';
-      grid.style.height = bodyH + 'px';
+    // ── main-area: fills right of sidebar ──
+    const mainArea = document.querySelector('.main-area');
+    if (mainArea) {
+      mainArea.style.top    = TOPBAR_H + 'px';
+      mainArea.style.bottom = '0px';
+      mainArea.style.width  = mainW + 'px';
+      if (isRTL()) {
+        mainArea.style.right = SIDEBAR_W + 'px';
+        mainArea.style.left  = '0px';
+      } else {
+        mainArea.style.left  = SIDEBAR_W + 'px';
+        mainArea.style.right = '0px';
+      }
     }
 
-    // Set #lessonContent height = bodyH minus viewer-header and lessonTabs
+    // ── viewer-header ──
     const viewerHeader = document.querySelector('.viewer-header');
-    const lessonTabs   = document.getElementById('lessonTabs');
-    const lessonContent = document.getElementById('lessonContent');
-    const viewerBody    = document.querySelector('.viewer-body');
+    if (!viewerHeader) return;
+    const headerH = viewerHeader.offsetHeight;
 
-    if (viewerHeader && lessonTabs && lessonContent && viewerBody) {
-      const usedH = viewerHeader.offsetHeight + lessonTabs.offsetHeight;
-      const contentH = bodyH - usedH;
-      lessonContent.style.height = contentH + 'px';
-      viewerBody.style.height = (bodyH - viewerHeader.offsetHeight) + 'px';
+    // ── chapter column ──
+    const chapterCol = document.getElementById('chapterCol');
+    if (chapterCol) {
+      chapterCol.style.top    = headerH + 'px';
+      chapterCol.style.bottom = '0px';
+      chapterCol.style.width  = CHAPTER_W + 'px';
+    }
+
+    // ── lesson column ──
+    const lessonCol = document.getElementById('lessonCol');
+    if (lessonCol) {
+      lessonCol.style.top    = headerH + 'px';
+      lessonCol.style.bottom = '0px';
+      const lessonW = mainW - CHAPTER_W;
+      lessonCol.style.width = lessonW + 'px';
+      if (isRTL()) {
+        lessonCol.style.left  = '0px';
+        lessonCol.style.right = CHAPTER_W + 'px';
+      } else {
+        lessonCol.style.right = '0px';
+        lessonCol.style.left  = CHAPTER_W + 'px';
+      }
+    }
+
+    // ── lesson tabs ──
+    const tabs = document.getElementById('lessonTabs');
+    const content = document.getElementById('lessonContent');
+    if (tabs && content) {
+      const tabsH = tabs.offsetHeight;
+      // lessonContent fills from below tabs to bottom of lesson col
+      content.style.top    = tabsH + 'px';
+      content.style.bottom = '0px';
     }
   }
 
   function init() {
     apply();
     window.addEventListener('resize', apply);
-    // visualViewport fires when mobile keyboard appears/disappears
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', apply);
+      window.visualViewport.addEventListener('scroll', apply);
     }
   }
 
@@ -437,6 +481,5 @@ const Layout = (() => {
 
 document.addEventListener('DOMContentLoaded', () => {
   Layout.init();
-  // Re-apply after fonts load (can change header heights)
   document.fonts?.ready?.then(Layout.apply);
 });
