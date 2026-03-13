@@ -91,22 +91,50 @@ const Parser = (() => {
 
   // ── Page Extraction ───────────────────────────────────────────────────────
 
+  // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
+  const ARABIC_LETTER_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  const SPACING_THRESHOLD_MULTIPLIER = 0.5; // empirically: half glyph width keeps words separated without breaking ligatures in tested textbooks
+  const MIN_GLYPH_WIDTH = 0.1; // px — prevents zero-width glyphs from eliminating inter-item spacing
+
   /**
-   * Merge adjacent items in a sorted (X-desc) band into a string.
+   * Heuristically pick reading direction per band:
+   * RTL when any Arabic letters are present, otherwise LTR (Latin/math).
+   */
+  function inferDirection(items) {
+    return items.some(it => ARABIC_LETTER_PATTERN.test(it.str)) ? 'rtl' : 'ltr';
+  }
+
+  /**
+   * Estimate the minimal horizontal gap (in px) that should introduce a space
+   * between two adjacent items, based on the current item's average glyph width.
+   */
+  function getSpacingThreshold(item) {
+    // Empty strings (e.g., whitespace glyphs) fall back to the raw item width.
+    const width = typeof item.width === 'number' ? item.width : 0;
+    const avgGlyphWidth = item.str.length === 0 ? width : width / item.str.length;
+    const safeWidth = Math.max(avgGlyphWidth, MIN_GLYPH_WIDTH); // prevent zero-width glyphs from zeroing out the threshold
+    return safeWidth * SPACING_THRESHOLD_MULTIPLIER;
+  }
+
+  /**
+   * Merge adjacent items in a band into a string.
+   * Direction-aware to keep Arabic RTL ordering while preserving
+   * the natural LTR order of mathematical equations and Latin text.
    * Inserts a space only when the gap between two items is larger than
    * half the current item's glyph width, avoiding both word-run-together
    * and spurious spaces inside Arabic ligatures.
    */
-  function bandToText(items) {
+  function bandToText(items, direction) {
     if (items.length === 0) return '';
     let out = items[0].str;
     for (let i = 1; i < items.length; i++) {
       const prev = items[i - 1];
       const cur  = items[i];
-      // Gap between right edge of current item and left edge of previous item
-      // (items are X-descending: prev is to the right of cur)
-      const gap = prev.x - (cur.x + cur.width);
-      const threshold = (cur.str.length > 0 ? cur.width / cur.str.length : cur.width) * 0.5;
+      // Gap between adjacent items following the reading direction.
+      const gap = direction === 'rtl'
+        ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
+        : cur.x - (prev.x + prev.width);        // cur is to the right of prev
+      const threshold = getSpacingThreshold(cur);
       if (gap > threshold) out += ' ';
       out += cur.str;
     }
@@ -116,7 +144,7 @@ const Parser = (() => {
   /**
    * Extract one page and return:
    *   lines    – [{text, fontSize, y}] sorted top-to-bottom
-   *   rawText  – full page text rebuilt from lines (top→bottom, RTL within line)
+   *   rawText  – full page text rebuilt from lines (top→bottom, direction-aware per line)
    *   flagged  – true if private-use-area glyphs were found
    */
   async function extractPage(pdfPage) {
@@ -153,11 +181,12 @@ const Parser = (() => {
       }
     }
 
-    // ── 4. Within each band, sort X descending (RTL: rightmost item first) ──
+    // ── 4. Within each band, sort X according to detected direction ─────────
     const lines = [];
     for (const band of bands) {
-      band.items.sort((a, b) => b.x - a.x);
-      const text = bandToText(band.items);
+      const direction = inferDirection(band.items);
+      band.items.sort((a, b) => direction === 'rtl' ? b.x - a.x : a.x - b.x);
+      const text = bandToText(band.items, direction);
       if (!text.trim()) continue;
       lines.push({ text, fontSize: band.fontSize, y: band.y });
     }
