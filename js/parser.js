@@ -54,6 +54,7 @@ const Parser = (() => {
     return str.replace(/[\uE000-\uF8FF]+/g, '[؟]');
   }
 
+  // Arabic combining marks (tashkeel/madd: 0610–061A, 064B–065F, 0670, 06D6–06ED) + tatweel (0640)
   const HARAKAT_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
 
   /**
