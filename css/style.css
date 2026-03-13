@@ -1,7 +1,6 @@
 /* ── Fonts ───────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap');
 
-/* ── Variables ───────────────────────────────────────────────────────────── */
 :root {
   --ink:      #1a1612;
   --sand:     #f5f0e8;
@@ -11,86 +10,50 @@
   --rust:     #8b3a2a;
   --sage:     #3d5a4a;
   --border:   #c8bfaa;
-
   --font-body:   'Lora', 'Noto Naskh Arabic', Georgia, serif;
   --font-arabic: 'Noto Naskh Arabic', 'Lora', serif;
   --font-mono:   'IBM Plex Mono', monospace;
-
   --sidebar-w:  240px;
   --chapter-w:  190px;
+  --topbar-h:   52px;
   --radius:     6px;
   --transition: 180ms ease;
 }
 
-/* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/*
- * SCROLL FIX — The full chain must be:
- *   html/body → 100% height, no overflow
- *   .app-shell → 100dvh (dvh = dynamic viewport height, accounts for mobile browser chrome)
- *   every ancestor of #lessonContent → must NOT have auto height (use flex/grid with min-height:0)
- *   #lessonContent → overflow-y: auto + -webkit-overflow-scrolling: touch (iOS momentum)
- */
-html, body {
-  height: 100%;
-  overflow: hidden;
-}
+/* No scroll on body at all — JS controls all heights explicitly */
+html, body { height: 100%; overflow: hidden; background: var(--sand); }
+body { font-family: var(--font-body); color: var(--ink); }
 
-body {
-  font-family: var(--font-body);
-  background: var(--sand);
-  color: var(--ink);
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── App shell ───────────────────────────────────────────────────────────── */
-.app-shell {
-  display: flex;
-  flex-direction: column;
-  /* 100dvh shrinks when mobile browser chrome appears — prevents overflow */
-  height: 100dvh;
-  /* Fallback for browsers without dvh support */
-  height: -webkit-fill-available;
-  overflow: hidden;
-}
-/* Override the fallback with dvh where supported */
-@supports (height: 100dvh) {
-  .app-shell { height: 100dvh; }
-}
-
-/* ── Topbar ──────────────────────────────────────────────────────────────── */
+/* ── Topbar — fixed at top ───────────────────────────────────────────────── */
 .topbar {
-  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  height: 52px;
   background: var(--ink);
   color: var(--sand);
   border-bottom: 3px solid var(--gold);
   gap: 12px;
 }
 .topbar-brand { display: flex; align-items: baseline; gap: 10px; }
-#appName {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 1.05rem;
-  letter-spacing: 0.08em;
-  color: var(--gold-lt);
-}
+#appName { font-family: var(--font-mono); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.08em; color: var(--gold-lt); }
 #appTagline { font-size: 0.74rem; color: #9e9282; font-style: italic; }
 .topbar-actions { display: flex; gap: 8px; }
 
-/* ── Body grid ───────────────────────────────────────────────────────────── */
+/* ── Body grid — positioned below topbar by JS ───────────────────────────── */
 .body-grid {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0; right: 0;
+  /* bottom is set by JS to window.innerHeight */
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
-  /* flex: 1 + min-height: 0 makes this fill remaining height without overflowing */
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -100,8 +63,6 @@ body {
   flex-direction: column;
   background: var(--warm);
   border-inline-end: 1px solid var(--border);
-  /* height: 100% is needed for grid children — unlike flex children they
-     don't automatically stretch to fill the grid row height */
   height: 100%;
   overflow: hidden;
 }
@@ -113,52 +74,20 @@ body {
   flex-direction: column;
   gap: 8px;
 }
-.sidebar-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #7a6e5e;
-}
+.sidebar-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #7a6e5e; }
 #storageInfo { font-size: 0.66rem; color: #9e9282; font-family: var(--font-mono); }
-#bookList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 6px 0;
-}
-.book-item {
-  padding: 9px 14px;
-  cursor: pointer;
-  border-inline-start: 3px solid transparent;
-  transition: background var(--transition), border-color var(--transition);
-}
+#bookList { flex: 1; overflow-y: scroll; -webkit-overflow-scrolling: touch; padding: 6px 0; }
+.book-item { padding: 9px 14px; cursor: pointer; border-inline-start: 3px solid transparent; transition: background var(--transition); }
 .book-item:hover { background: rgba(181,134,42,0.08); }
 .book-item.active { background: rgba(181,134,42,0.12); border-inline-start-color: var(--gold); }
 .book-name { display: block; font-size: 0.84rem; font-family: var(--font-arabic); line-height: 1.4; }
 .book-meta { display: block; font-size: 0.68rem; color: #7a6e5e; font-family: var(--font-mono); margin-top: 2px; }
 
 /* ── Main content ────────────────────────────────────────────────────────── */
-.main-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;      /* grid child — needs explicit height */
-  min-height: 0;
-  overflow: hidden;
-}
+.main-content { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
-.btn {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  padding: 6px 14px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition);
-  white-space: nowrap;
-}
+.btn { font-family: var(--font-body); font-size: 0.8rem; padding: 6px 14px; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; transition: background var(--transition), color var(--transition); white-space: nowrap; }
 .btn-ghost { background: transparent; border-color: #4a4238; color: #c8bfaa; }
 .btn-ghost:hover { background: #2a2420; color: var(--sand); }
 .btn-gold { background: var(--gold); color: #fff; font-weight: 600; }
@@ -169,109 +98,32 @@ body {
 .btn-rust:hover { background: var(--rust); color: #fff; }
 
 /* ── Upload panel ────────────────────────────────────────────────────────── */
-#uploadPanel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  gap: 20px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
+#uploadPanel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 20px; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
 #uploadPanel.hidden { display: none; }
 #uploadTitle { font-size: 1.3rem; font-weight: 600; }
-#dropzone {
-  width: 100%; max-width: 460px;
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 44px 24px;
-  text-align: center;
-  cursor: pointer;
-  background: var(--warm);
-  transition: border-color var(--transition), background var(--transition);
-}
+#dropzone { width: 100%; max-width: 460px; border: 2px dashed var(--border); border-radius: 12px; padding: 44px 24px; text-align: center; cursor: pointer; background: var(--warm); transition: border-color var(--transition), background var(--transition); }
 #dropzone:hover, #dropzone.drag-over { border-color: var(--gold); background: rgba(181,134,42,0.06); }
 .dropzone-icon { font-size: 2.2rem; margin-bottom: 10px; }
 #uploadHint { color: #7a6e5e; font-size: 0.86rem; }
-
-/* ── Meta form ───────────────────────────────────────────────────────────── */
-#metaForm {
-  width: 100%; max-width: 460px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+#metaForm { width: 100%; max-width: 460px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 #metaForm.hidden { display: none; }
 #metaFileName { font-family: var(--font-mono); font-size: 0.74rem; color: #7a6e5e; word-break: break-all; }
 .form-group { display: flex; flex-direction: column; gap: 4px; }
 .form-label { font-size: 0.76rem; font-weight: 600; color: #5a4e3e; }
-.form-input {
-  font-family: var(--font-arabic);
-  font-size: 0.9rem;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--sand);
-  color: var(--ink);
-  direction: auto;
-}
+.form-input { font-family: var(--font-arabic); font-size: 0.9rem; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--sand); color: var(--ink); direction: auto; }
 .form-input:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
 
 /* ── Progress panel ──────────────────────────────────────────────────────── */
-#progressPanel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 40px;
-}
+#progressPanel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px; }
 #progressPanel.hidden { display: none; }
-.progress-track {
-  width: 100%; max-width: 400px;
-  height: 6px;
-  background: var(--warm);
-  border-radius: 99px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-#progressBar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--gold), var(--gold-lt));
-  border-radius: 99px;
-  width: 0%;
-  transition: width 200ms ease;
-}
+.progress-track { width: 100%; max-width: 400px; height: 6px; background: var(--warm); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+#progressBar { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt)); border-radius: 99px; width: 0%; transition: width 200ms ease; }
 #progressLabel { font-family: var(--font-mono); font-size: 0.8rem; color: #7a6e5e; }
 
 /* ── Viewer panel ────────────────────────────────────────────────────────── */
-#viewerPanel {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
+#viewerPanel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 #viewerPanel.hidden { display: none; }
-
-.viewer-header {
-  flex-shrink: 0;
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  background: #fff;
-}
+.viewer-header { flex-shrink: 0; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; background: #fff; }
 .viewer-title-group { display: flex; flex-direction: column; gap: 2px; }
 #bookTitle { font-family: var(--font-arabic); font-size: 1.05rem; font-weight: 600; }
 #bookSubtitle { font-size: 0.76rem; color: #7a6e5e; }
@@ -282,143 +134,45 @@ body {
   display: grid;
   grid-template-columns: var(--chapter-w) 1fr;
   flex: 1;
-  min-height: 0;
-  /* height: 100% ensures grid fills the flex space */
-  height: 100%;
+  /* height is set explicitly by JS */
   overflow: hidden;
 }
 
 /* Chapter sidebar */
-.chapter-sidebar {
-  background: var(--warm);
-  border-inline-end: 1px solid var(--border);
-  height: 100%;           /* grid child needs this */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.section-heading {
-  padding: 8px 12px;
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #9e9282;
-  position: sticky;
-  top: 0;
-  background: var(--warm);
-  border-bottom: 1px solid var(--border);
-}
-.chapter-item {
-  padding: 9px 12px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border-inline-start: 3px solid transparent;
-  transition: background var(--transition);
-  font-size: 0.86rem;
-}
+.chapter-sidebar { background: var(--warm); border-inline-end: 1px solid var(--border); height: 100%; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
+.section-heading { padding: 8px 12px; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #9e9282; position: sticky; top: 0; background: var(--warm); border-bottom: 1px solid var(--border); }
+.chapter-item { padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-inline-start: 3px solid transparent; transition: background var(--transition); font-size: 0.86rem; }
 .chapter-item:hover { background: rgba(181,134,42,0.08); }
-.chapter-item.active {
-  background: rgba(181,134,42,0.14);
-  border-inline-start-color: var(--gold);
-  font-weight: 600;
-}
+.chapter-item.active { background: rgba(181,134,42,0.14); border-inline-start-color: var(--gold); font-weight: 600; }
 .ch-lesson-count { font-size: 0.66rem; color: #9e9282; font-family: var(--font-mono); }
 
 /* ── Lesson area ─────────────────────────────────────────────────────────── */
-.lesson-area {
-  display: flex;
-  flex-direction: column;
-  height: 100%;           /* grid child needs this */
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Tabs row — never scrolls vertically */
-#lessonTabs {
-  flex-shrink: 0;
-  display: flex;
-  background: var(--warm);
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 0 4px;
-}
-.lesson-tab {
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  padding: 9px 14px;
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  cursor: pointer;
-  color: #7a6e5e;
-  white-space: nowrap;
-  transition: color var(--transition), border-color var(--transition);
-}
+.lesson-area { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+#lessonTabs { flex-shrink: 0; display: flex; background: var(--warm); border-bottom: 1px solid var(--border); overflow-x: scroll; -webkit-overflow-scrolling: touch; padding: 0 4px; }
+.lesson-tab { font-family: var(--font-body); font-size: 0.8rem; padding: 9px 14px; background: transparent; border: none; border-bottom: 3px solid transparent; cursor: pointer; color: #7a6e5e; white-space: nowrap; transition: color var(--transition), border-color var(--transition); }
 .lesson-tab:hover { color: var(--ink); }
 .lesson-tab.active { color: var(--ink); border-bottom-color: var(--gold); font-weight: 600; }
 
-/* THE main scroll container */
+/* THE scroll container — height set by JS */
 #lessonContent {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;  /* iOS momentum scroll */
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
   padding: 18px 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* Explicit height injected by JS — this is the key */
 }
 
 /* ── Content blocks ──────────────────────────────────────────────────────── */
-.page-range {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: #9e9282;
-}
-.flagged-warning {
-  background: #fff8e6;
-  border: 1px solid #e8c84a;
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: 0.8rem;
-  color: #6b5500;
-}
-.section-block {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.section-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: var(--warm);
-  padding: 6px 14px;
-  color: var(--sage);
-  border-bottom: 1px solid var(--border);
-}
-.section-text {
-  padding: 14px 16px;
-  font-family: var(--font-arabic);
-  font-size: 0.95rem;
-  line-height: 2;
-  color: var(--ink);
-  white-space: pre-wrap;
-  word-break: break-word;
-  direction: rtl;
-  text-align: right;
-}
+.page-range { font-family: var(--font-mono); font-size: 0.7rem; color: #9e9282; }
+.flagged-warning { background: #fff8e6; border: 1px solid #e8c84a; border-radius: var(--radius); padding: 10px 14px; font-size: 0.8rem; color: #6b5500; }
+.section-block { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: var(--warm); padding: 6px 14px; color: var(--sage); border-bottom: 1px solid var(--border); }
+.section-text { padding: 14px 16px; font-family: var(--font-arabic); font-size: 0.95rem; line-height: 2; color: var(--ink); white-space: pre-wrap; word-break: break-word; direction: rtl; text-align: right; }
 .empty-hint { padding: 10px 14px; color: #9e9282; font-size: 0.8rem; }
 
-/* ── Scrollbars ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #a89c88; }
-
-/* ── Utility ─────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
