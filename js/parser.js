@@ -91,21 +91,31 @@ const Parser = (() => {
 
   // ── Page Extraction ───────────────────────────────────────────────────────
 
+  const ARABIC_LETTER_RE = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+
+  function inferDirection(items) {
+    const text = items.map(it => it.str).join('');
+    return ARABIC_LETTER_RE.test(text) ? 'rtl' : 'ltr';
+  }
+
   /**
-   * Merge adjacent items in a sorted (X-desc) band into a string.
+   * Merge adjacent items in a band into a string.
+   * Direction-aware to keep Arabic RTL ordering while preserving
+   * the natural LTR order of mathematical equations and Latin text.
    * Inserts a space only when the gap between two items is larger than
    * half the current item's glyph width, avoiding both word-run-together
    * and spurious spaces inside Arabic ligatures.
    */
-  function bandToText(items) {
+  function bandToText(items, direction = 'rtl') {
     if (items.length === 0) return '';
     let out = items[0].str;
     for (let i = 1; i < items.length; i++) {
       const prev = items[i - 1];
       const cur  = items[i];
-      // Gap between right edge of current item and left edge of previous item
-      // (items are X-descending: prev is to the right of cur)
-      const gap = prev.x - (cur.x + cur.width);
+      // Gap between adjacent items following the reading direction.
+      const gap = direction === 'rtl'
+        ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
+        : cur.x - (prev.x + prev.width);        // cur is to the right of prev
       const threshold = (cur.str.length > 0 ? cur.width / cur.str.length : cur.width) * 0.5;
       if (gap > threshold) out += ' ';
       out += cur.str;
@@ -116,7 +126,7 @@ const Parser = (() => {
   /**
    * Extract one page and return:
    *   lines    – [{text, fontSize, y}] sorted top-to-bottom
-   *   rawText  – full page text rebuilt from lines (top→bottom, RTL within line)
+   *   rawText  – full page text rebuilt from lines (top→bottom, direction-aware per line)
    *   flagged  – true if private-use-area glyphs were found
    */
   async function extractPage(pdfPage) {
@@ -156,8 +166,9 @@ const Parser = (() => {
     // ── 4. Within each band, sort X descending (RTL: rightmost item first) ──
     const lines = [];
     for (const band of bands) {
-      band.items.sort((a, b) => b.x - a.x);
-      const text = bandToText(band.items);
+      const direction = inferDirection(band.items);
+      band.items.sort((a, b) => direction === 'rtl' ? b.x - a.x : a.x - b.x);
+      const text = bandToText(band.items, direction);
       if (!text.trim()) continue;
       lines.push({ text, fontSize: band.fontSize, y: band.y });
     }
