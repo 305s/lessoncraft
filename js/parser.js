@@ -108,8 +108,9 @@ const Parser = (() => {
    * Estimate the minimal horizontal gap (in px) that should introduce a space
    * between two adjacent items, based on the current item's average glyph width.
    */
-  const calculateSpacingThreshold = item =>
-    (item.str.length > 0 ? item.width / item.str.length : item.width) * SPACING_THRESHOLD_MULTIPLIER;
+  function getSpacingThreshold(item) {
+    return (item.str.length > 0 ? item.width / item.str.length : item.width) * SPACING_THRESHOLD_MULTIPLIER;
+  }
 
   /**
    * Merge adjacent items in a band into a string.
@@ -129,7 +130,7 @@ const Parser = (() => {
       const gap = direction === 'rtl'
         ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
         : cur.x - (prev.x + prev.width);        // cur is to the right of prev
-      const threshold = calculateSpacingThreshold(cur);
+      const threshold = getSpacingThreshold(direction === 'rtl' ? cur : prev);
       if (gap > threshold) out += ' ';
       out += cur.str;
     }
