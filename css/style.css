@@ -179,13 +179,30 @@ html, body { height: 100%; overflow: hidden; background: var(--sand); font-famil
 [dir="rtl"] .lesson-col { left: 0; right: var(--chapter-w); }
 [dir="ltr"] .lesson-col { right: 0; left: var(--chapter-w); }
 
-/* tabs: fixed inside lesson col */
+/* tabs / lesson selector: fixed inside lesson col */
 #lessonTabs {
   position: absolute; top: 0; left: 0; right: 0;
-  display: flex; background: var(--warm); border-bottom: 1px solid var(--border);
-  overflow-x: scroll; -webkit-overflow-scrolling: touch;
-  padding: 0 4px; z-index: 5;
+  display: flex; align-items: center;
+  background: var(--warm); border-bottom: 1px solid var(--border);
+  padding: 6px 10px; z-index: 5;
+  box-sizing: border-box;
 }
+.lesson-select {
+  font-family: var(--font-arabic);
+  font-size: .9rem;
+  padding: 7px 12px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--warm);
+  color: var(--ink);
+  cursor: pointer;
+  direction: rtl;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.lesson-select:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(21,101,192,.18); }
+/* Keep legacy tab styles so previously-stored data still renders if referenced */
 .lesson-tab { font-family: var(--font-body); font-size: .78rem; padding: 9px 14px; background: transparent; border: none; border-bottom: 3px solid transparent; cursor: pointer; color: #546E7A; white-space: nowrap; transition: color var(--transition), border-color var(--transition); }
 .lesson-tab:hover { color: var(--ink); }
 .lesson-tab.active { color: var(--ink); border-bottom-color: var(--gold); font-weight: 600; }

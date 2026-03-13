@@ -35,6 +35,8 @@ const App = (() => {
       },
       flaggedWarning: 'تحتوي بعض الصفحات على خطوط مخصصة وقد لا يكون النص مقروءاً.',
       noLessons: 'لم يتم اكتشاف دروس في هذا الفصل.',
+      selectLesson: 'اختر درساً',
+      lessonTitleSep: ' — ',
       export: 'تصدير JSON',
       deleteBook: 'حذف',
       myBooks: 'كتبي',
@@ -68,6 +70,8 @@ const App = (() => {
       },
       flaggedWarning: 'Some pages use custom fonts — text may not be fully readable.',
       noLessons: 'No lessons detected in this chapter.',
+      selectLesson: 'Select a lesson',
+      lessonTitleSep: ' — ',
       export: 'Export JSON',
       deleteBook: 'Delete',
       myBooks: 'My Books',
@@ -290,7 +294,7 @@ const App = (() => {
     const chapter = book.chapters[currentChapterIdx];
     if (!chapter) return;
 
-    // Lesson tabs
+    // Lesson selector (dropdown)
     const tabBar = $('lessonTabs');
     tabBar.innerHTML = '';
 
@@ -299,21 +303,34 @@ const App = (() => {
       return;
     }
 
+    const select = document.createElement('select');
+    select.className = 'lesson-select';
+    select.setAttribute('aria-label', t('lessons'));
+
     chapter.lessons.forEach((les, idx) => {
-      const tab = el('button', 'lesson-tab' + (idx === currentLessonIdx ? ' active' : ''));
+      const option = document.createElement('option');
+      option.value = idx;
+      let label;
       if (les.id === 'intro') {
-        tab.textContent = t('sections.warmup');
+        label = t('sections.warmup');
       } else if (les.id === 'midtest') {
-        tab.textContent = les.title || t('sections.review');
+        label = les.title || t('sections.review');
       } else {
-        tab.textContent = `${t('lesson')} ${les.id}`;
+        label = les.title
+          ? `${t('lesson')} ${les.id}${t('lessonTitleSep')}${les.title}`
+          : `${t('lesson')} ${les.id}`;
       }
-      tab.addEventListener('click', () => {
-        currentLessonIdx = idx;
-        renderLesson(book);
-      });
-      tabBar.appendChild(tab);
+      option.textContent = label;
+      if (idx === currentLessonIdx) option.selected = true;
+      select.appendChild(option);
     });
+
+    select.addEventListener('change', e => {
+      currentLessonIdx = parseInt(e.target.value, 10);
+      renderLesson(book);
+    });
+
+    tabBar.appendChild(select);
 
     // Lesson body
     const lesson = chapter.lessons[currentLessonIdx];

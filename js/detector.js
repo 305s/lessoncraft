@@ -58,7 +58,9 @@ const Detector = (() => {
     review:    [/مراجعة/, /ةعجارم/],
   };
 
-  const TOC_SCAN_PAGES = 12;
+  const TOC_SCAN_PAGES      = 12;
+  const MAX_TITLE_SCAN_LINES = 10;  // top lines to inspect when extracting a lesson title
+  const MIN_TITLE_LENGTH     = 2;   // minimum character count for a valid title candidate
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -321,6 +323,46 @@ const Detector = (() => {
     return { annotated };
   }
 
+  // ── Lesson Title Extraction ───────────────────────────────────────────────
+  //
+  // Extracts the lesson title from the top lines of the first page of a lesson.
+  // Arabic textbooks typically show the lesson title as a prominent (large-font)
+  // centered text near the top of the page, just below the lesson-number header.
+  //
+  // Strategy:
+  //   1. Consider only the first 10 lines (top of page, sorted top-to-bottom).
+  //   2. Skip lines that are: pure numbers, the lesson-marker ("N - M"),
+  //      chapter-cover words, or section-pattern headers.
+  //   3. Among the remaining Arabic-text candidates, choose the one with the
+  //      largest font size (most prominent visual element = the title).
+
+  function extractLessonTitle(page) {
+    const lines = (page.lines || []).slice(0, MAX_TITLE_SCAN_LINES);
+    const candidates = [];
+
+    for (const line of lines) {
+      const text = (line.text || '').trim();
+      if (!text || text.length < MIN_TITLE_LENGTH) continue;
+      const normalized = normalizeDigits(text);
+      // Skip pure-number lines and "N - M" patterns (lesson/page numbers)
+      if (/^\d+(\s*-\s*\d+)?$/.test(normalized)) continue;
+      // Skip non-Arabic lines
+      if (!hasArabic(text)) continue;
+      // Skip the lesson-header marker line
+      if (LESSON_MARKER.test(normalized)) continue;
+      // Skip chapter-cover lines
+      if (CHAPTER_COVER_WORD.test(normalized)) continue;
+      // Skip known section-header patterns
+      if (detectSection(normalized)) continue;
+      candidates.push({ text, fontSize: line.fontSize || 0 });
+    }
+
+    if (candidates.length === 0) return '';
+    // Prefer the largest-font candidate (most visually prominent = the title)
+    candidates.sort((a, b) => b.fontSize - a.fontSize);
+    return candidates[0].text;
+  }
+
   // ── Pass 3: Build Tree ────────────────────────────────────────────────────
 
   function buildTree(annotated, metadata = {}, coverMap = {}) {
@@ -339,9 +381,18 @@ const Detector = (() => {
 
       const ch = chaptersMap[chId];
       if (!ch.lessons[lesId]) {
+        let title = '';
+        if (lesId === 'intro') {
+          title = 'التهيئة';
+        } else if (lesId === 'midtest') {
+          title = 'اختبار الفصل';
+        } else {
+          // Extract the lesson title from the top of the first page of this lesson
+          title = extractLessonTitle(page);
+        }
         ch.lessons[lesId] = {
           id:           lesId,
-          title:        lesId === 'intro' ? 'التهيئة' : lesId === 'midtest' ? 'اختبار الفصل' : '',
+          title,
           pages:        [],
           sections:     {},
           flaggedPages: [],
