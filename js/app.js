@@ -247,6 +247,7 @@ const App = (() => {
     // Chapter sidebar
     renderChapterList(book);
     renderLesson(book);
+    setTimeout(() => { if (typeof Layout !== "undefined") Layout.apply(); }, 80);
 
     // Export button
     $('exportBtn').onclick = () => Store.exportJSON(bookId);
@@ -389,3 +390,53 @@ const App = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
+
+// ── Layout engine ─────────────────────────────────────────────────────────
+// Mobile Safari ignores flex/grid height chains. We measure and set px heights
+// explicitly so every scroll container knows its exact available space.
+const Layout = (() => {
+  const TOPBAR_H = 52; // must match --topbar-h in CSS
+
+  function apply() {
+    // Use visualViewport if available (accounts for on-screen keyboard on mobile)
+    const vh = (window.visualViewport?.height ?? window.innerHeight);
+    const bodyH = vh - TOPBAR_H;
+
+    // Set .body-grid height
+    const grid = document.querySelector('.body-grid');
+    if (grid) {
+      grid.style.bottom = '0px';
+      grid.style.height = bodyH + 'px';
+    }
+
+    // Set #lessonContent height = bodyH minus viewer-header and lessonTabs
+    const viewerHeader = document.querySelector('.viewer-header');
+    const lessonTabs   = document.getElementById('lessonTabs');
+    const lessonContent = document.getElementById('lessonContent');
+    const viewerBody    = document.querySelector('.viewer-body');
+
+    if (viewerHeader && lessonTabs && lessonContent && viewerBody) {
+      const usedH = viewerHeader.offsetHeight + lessonTabs.offsetHeight;
+      const contentH = bodyH - usedH;
+      lessonContent.style.height = contentH + 'px';
+      viewerBody.style.height = (bodyH - viewerHeader.offsetHeight) + 'px';
+    }
+  }
+
+  function init() {
+    apply();
+    window.addEventListener('resize', apply);
+    // visualViewport fires when mobile keyboard appears/disappears
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', apply);
+    }
+  }
+
+  return { init, apply };
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+  Layout.init();
+  // Re-apply after fonts load (can change header heights)
+  document.fonts?.ready?.then(Layout.apply);
+});
