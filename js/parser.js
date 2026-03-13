@@ -92,7 +92,7 @@ const Parser = (() => {
   // ── Page Extraction ───────────────────────────────────────────────────────
 
   // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
-  const ARABIC_LETTER_REGEX = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  const ARABIC_LETTERS_REGEX = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
   const SPACING_THRESHOLD_MULTIPLIER = 0.5; // half glyph width yields readable word separation without splitting ligatures
 
   /**
@@ -101,14 +101,14 @@ const Parser = (() => {
    */
   function inferDirection(items) {
     const text = items.map(it => it.str).join('');
-    return ARABIC_LETTER_REGEX.test(text) ? 'rtl' : 'ltr';
+    return ARABIC_LETTERS_REGEX.test(text) ? 'rtl' : 'ltr';
   }
 
   /**
    * Estimate the minimal horizontal gap (in px) that should introduce a space
    * between two adjacent items, based on the current item's average glyph width.
    */
-  const spacingThreshold = item =>
+  const calculateSpacingThreshold = item =>
     (item.str.length > 0 ? item.width / item.str.length : item.width) * SPACING_THRESHOLD_MULTIPLIER;
 
   /**
@@ -129,7 +129,7 @@ const Parser = (() => {
       const gap = direction === 'rtl'
         ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
         : cur.x - (prev.x + prev.width);        // cur is to the right of prev
-      const threshold = spacingThreshold(cur);
+      const threshold = calculateSpacingThreshold(cur);
       if (gap > threshold) out += ' ';
       out += cur.str;
     }
