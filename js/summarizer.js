@@ -49,6 +49,11 @@ const Summarizer = (() => {
     return items;
   }
 
+  // Normalise score contribution of sentence length.
+  // A sentence of 20 characters contributes 1 point; the bonus is capped at 5
+  // so very long sentences don't dominate over educationally-relevant shorter ones.
+  const SENTENCE_LENGTH_DIVISOR = 20;
+
   /**
    * Very lightweight "important sentence" scorer.
    * Rewards sentences that are longer (more content) and contain
@@ -61,7 +66,7 @@ const Summarizer = (() => {
   ];
 
   function scoreSentence(sentence) {
-    let score = Math.min(sentence.length / 20, 5); // length bonus, capped at 5
+    let score = Math.min(sentence.length / SENTENCE_LENGTH_DIVISOR, 5); // length bonus, capped at 5
     for (const re of SIGNAL_WORDS) {
       if (re.test(sentence)) score += 1;
     }

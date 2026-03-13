@@ -560,7 +560,7 @@ const App = (() => {
         <div class="form-group">
           <label class="form-label">${t('hwTitleLabel')}</label>
           <input id="hwTitleInput" class="form-input" type="text"
-            value="${escapeAttr(lesson.title ? `${t('lesson')} ${lesson.id} — ${lesson.title}` : `${t('lesson')} ${lesson.id}`)}" />
+            value="${escapeAttr(lesson.title ? `${t('lesson')} ${lesson.id}${t('lessonTitleSep')}${lesson.title}` : `${t('lesson')} ${lesson.id}`)}" />
         </div>
         <div class="form-group">
           <label class="form-label">${t('hwDueDate')}</label>
@@ -919,6 +919,7 @@ const App = (() => {
     for (const st of students) {
       const avg = Students.studentAverage(st.id);
       const tr  = document.createElement('tr');
+      tr.dataset.studentId = st.id;  // stored for reliable row lookup
       tr.innerHTML = `
         <td dir="auto">${escapeHtml(st.name)}</td>
         <td dir="auto">${escapeHtml(st.grade || '—')}</td>
@@ -954,9 +955,9 @@ const App = (() => {
     const grades = Students.getStudentGrades(student.id);
     if (grades.length === 0) return;
 
-    // Find student's row and insert after it
+    // Find student's row by data-student-id attribute (avoids name-based false matches)
     const rows = [...tbody.querySelectorAll('tr:not(.inline-grades-row)')];
-    const studentRow = rows.find(r => r.querySelector('td')?.textContent.trim() === student.name);
+    const studentRow = rows.find(r => r.dataset.studentId === student.id);
     if (!studentRow) return;
 
     const inlineRow = document.createElement('tr');

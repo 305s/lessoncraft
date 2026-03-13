@@ -103,6 +103,11 @@ const Parser = (() => {
   const MIN_GLYPH_WIDTH = 0.1; // px — prevents zero-width glyphs from eliminating inter-item spacing
 
   // Dynamic Y-tolerance constants
+  // Y_TOLERANCE_FACTOR = 0.35: empirically, a same-line item at fontSize F can
+  // be placed up to ~35% of F away from the band baseline due to super/subscripts,
+  // sub-pixel rounding, or diacritic anchoring.  Values 0.3–0.4 were tested on
+  // several Saudi MoE textbooks; 0.35 avoids both under-grouping (headlines split
+  // into fragments) and over-grouping (adjacent small-body lines merged).
   const Y_TOLERANCE_MIN    = 2;    // px — absolute floor
   const Y_TOLERANCE_FACTOR = 0.35; // fraction of fontSize
 

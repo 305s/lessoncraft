@@ -40,6 +40,12 @@ const Students = (() => {
     }
   }
 
+  /**
+   * Lightweight ID generator suitable for a single-user classroom app.
+   * Combines a millisecond timestamp with 5 random base-36 characters.
+   * Collision probability is negligible for ≤ hundreds of records per device.
+   * For a multi-user production backend, replace with a UUID v4 generator.
+   */
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
