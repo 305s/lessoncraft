@@ -1,5 +1,5 @@
 /**
- * detector.js — v6
+ * detector.js — v7
  *
  * Arabic-textbook structure detection strategy
  * ─────────────────────────────────────────────
@@ -39,23 +39,27 @@ const Detector = (() => {
   // ── Patterns ──────────────────────────────────────────────────────────────
 
   // Lesson-header marker: "lessonNum - chapterNum" — e.g. "1 - 7" or "٢ - ٨"
+  // Also matches "lessonNum–chapterNum" (em-dash) and "lessonNum/chapterNum"
   // Checked ONLY against the first 1-4 lines of a page (the header area),
   // never against the full page text, to eliminate false positives from
   // exercise / equation numbers in the page body.
-  const LESSON_MARKER = /(?:^|[\s\u0600-\u06FF])(\d{1,2})\s*-\s*(\d{1,2})(?:$|[\s\u0600-\u06FF])/;
+  const LESSON_MARKER = /(?:^|[\s\u0600-\u06FF])(\d{1,2})\s*[-–\/]\s*(\d{1,2})(?:$|[\s\u0600-\u06FF])/;
 
   // Chapter cover: "الفصل N" (forward) or "لصفلا N" (reversed visual-order)
   // or "N الفصل" / "N لصفلا" (when number precedes the word).
   const CHAPTER_COVER_WORD = /(?:الفصل|لصفلا)/;
   const CHAPTER_COVER_RE   = /(?:الفصل|لصفلا)\s*(\d{1,2})|(\d{1,2})\s*(?:الفصل|لصفلا)/;
 
+  // Mid-term test patterns (forward + common reversed forms)
+  const MIDTEST_RE = /منتصف|فصتنم|اختبار\s*(?:منتصف|الفصل)|نيمنتص/;
+
   const SECTION_PATTERNS = {
-    warmup:    [/التهيئة/, /ةئيهتلا/, /ةُ\s*ئَ\s*يِ\s*هتَّ/, /ةُ\s*ـ+ئَ\s*يِ\s*هتَّ/],
-    explore:   [/الاستكشاف/, /فاشكتسا/, /فاشكتسلاا/],
-    learn:     [/تعلم/, /ملعت/, /أتعلم/],
-    example:   [/مثال/, /لاثم/],
-    exercises: [/تدرب/, /برّدت/, /تمارين/, /نيرامت/],
-    review:    [/مراجعة/, /ةعجارم/],
+    warmup:    [/التهيئة/, /ةئيهتلا/, /ةُ?\s*ئَ?\s*يِ?\s*هتَّ?/, /هيئ/, /ئيهت/],
+    explore:   [/الاستكشاف/, /استكشاف/, /فاشكتسا/, /فاشكتسلاا/, /اكتشف/],
+    learn:     [/تعلم/, /ملعت/, /أتعلم/, /سأتعلم/, /ملعتأ/, /نتعلم/],
+    example:   [/مثال/, /لاثم/, /أمثلة/, /ةلثمأ/],
+    exercises: [/تدرب/, /برّدت/, /تمارين/, /نيرامت/, /تمرين/, /نيرمت/, /انشط/, /نشاط/],
+    review:    [/مراجعة/, /ةعجارم/, /اختبار/, /رابتخا/, /راجع/],
   };
 
   const TOC_SCAN_PAGES      = 12;
@@ -261,7 +265,7 @@ const Detector = (() => {
 
       // ── 3. Mid-chapter test ─────────────────────────────────────────────
       // Check BEFORE lesson marker because mid-test pages contain "4-7" etc.
-      if (/منتصف|فصتنم/.test(rawN)) {
+      if (MIDTEST_RE.test(rawN)) {
         curLesson  = 'midtest';
         curSection = null;
         annotated.push({
@@ -302,10 +306,13 @@ const Detector = (() => {
       }
 
       // ── 6. Section detection (only inside numbered lessons) ─────────────
+      // Scan all lines and use the LAST detected section marker on the page.
+      // (A page can contain an exercises block after a learn block; we want
+      //  to attribute the page to its most specific section.)
       if (curLesson !== null && curLesson !== 'midtest') {
         for (const line of (page.lines || [])) {
           const sec = detectSection(normalizeDigits(line.text));
-          if (sec) { curSection = sec; break; }
+          if (sec) curSection = sec;
         }
       }
 
@@ -332,9 +339,10 @@ const Detector = (() => {
   // Strategy:
   //   1. Consider only the first 10 lines (top of page, sorted top-to-bottom).
   //   2. Skip lines that are: pure numbers, the lesson-marker ("N - M"),
-  //      chapter-cover words, or section-pattern headers.
+  //      chapter-cover words, section-pattern headers, or page folios.
   //   3. Among the remaining Arabic-text candidates, choose the one with the
   //      largest font size (most prominent visual element = the title).
+  //      If two candidates tie in font size, prefer the one that appears first.
 
   function extractLessonTitle(page) {
     const lines = (page.lines || []).slice(0, MAX_TITLE_SCAN_LINES);
@@ -343,9 +351,10 @@ const Detector = (() => {
     for (const line of lines) {
       const text = (line.text || '').trim();
       if (!text || text.length < MIN_TITLE_LENGTH) continue;
+      if (line.isPageFolio) continue;
       const normalized = normalizeDigits(text);
-      // Skip pure-number lines and "N - M" patterns (lesson/page numbers)
-      if (/^\d+(\s*-\s*\d+)?$/.test(normalized)) continue;
+      // Skip pure-number lines and "N - M / N–M" patterns (lesson/page numbers)
+      if (/^\d+(\s*[-–\/]\s*\d+)?$/.test(normalized)) continue;
       // Skip non-Arabic lines
       if (!hasArabic(text)) continue;
       // Skip the lesson-header marker line
@@ -358,7 +367,8 @@ const Detector = (() => {
     }
 
     if (candidates.length === 0) return '';
-    // Prefer the largest-font candidate (most visually prominent = the title)
+    // Prefer the largest-font candidate (most visually prominent = the title).
+    // Stable sort: in case of tie, keep original order (top-most first).
     candidates.sort((a, b) => b.fontSize - a.fontSize);
     return candidates[0].text;
   }

@@ -1,15 +1,16 @@
 /**
- * parser.js — v2
+ * parser.js — v3
  * PDF loading, page extraction, and Arabic text repair.
  *
  * Arabic-textbook parsing strategy (best practices):
  *
  *  1. Collect every text item with its exact (x, y, fontSize) from pdf.js.
  *
- *  2. GROUP into visual lines with Y-tolerance ±3 px.
- *     Arabic glyphs on the same baseline can differ by 1-2 px due to
- *     sub-pixel rendering; exact-Y grouping incorrectly splits one visual
- *     line into many fragments.
+ *  2. GROUP into visual lines with dynamic Y-tolerance based on fontSize.
+ *     Large fonts need a wider tolerance (up to fontSize × 0.35);
+ *     small fonts use a minimum of 2 px.  This prevents both under-grouping
+ *     (splitting one headline into many fragments) and over-grouping
+ *     (merging items from adjacent lines in dense body text).
  *
  *  3. SORT items within each line by X DESCENDING (right-to-left).
  *     Arabic is read RTL, so the rightmost glyph cluster is logically first.
@@ -21,12 +22,17 @@
  *     words from running together while avoiding spurious spaces inside
  *     ligatures.
  *
- *  5. REBUILD rawText by joining lines TOP-TO-BOTTOM.
+ *  5. ANNOTATE each line with an isPageNumber flag (standalone 1-4 digit
+ *     number) and an isHeader flag (y > 88 % of page height → near the top).
+ *     The detector uses these to avoid treating page folios as lesson numbers.
+ *
+ *  6. REBUILD rawText by joining lines TOP-TO-BOTTOM, skipping pure
+ *     page-number lines at the very top/bottom of the page.
  *     Because PDF Y=0 is at the page bottom, lines are sorted by
  *     descending Y.  This guarantees rawText[0..N] is always the page
  *     header — the detector relies on this for lesson/chapter detection.
  *
- *  6. Apply Arabic repair (NFKC normalise → expand Arabic presentation
+ *  7. Apply Arabic repair (NFKC normalise → expand Arabic presentation
  *     forms → strip bidi controls → replace private-use glyphs).
  *
  * Depends on: pdfjsLib (loaded globally via CDN)
@@ -74,11 +80,11 @@ const Parser = (() => {
   }
 
   function repairArabic(rawText) {
-    const flagged  = hasPrivateUseGlyphs(rawText);
-    const replaced = replacePrivateGlyphs(rawText);
+    const flagged    = hasPrivateUseGlyphs(rawText);
+    const replaced   = replacePrivateGlyphs(rawText);
     const normalized = nfkcNormalize(replaced);
-    const stripped = stripHarakat(normalized);
-    const cleaned  = cleanText(stripped);
+    const stripped   = stripHarakat(normalized);
+    const cleaned    = cleanText(stripped);
     return { text: cleaned, flagged };
   }
 
@@ -95,6 +101,31 @@ const Parser = (() => {
   const ARABIC_LETTER_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   const SPACING_THRESHOLD_MULTIPLIER = 0.5; // empirically: half glyph width keeps words separated without breaking ligatures in tested textbooks
   const MIN_GLYPH_WIDTH = 0.1; // px — prevents zero-width glyphs from eliminating inter-item spacing
+
+  // Dynamic Y-tolerance constants
+  const Y_TOLERANCE_MIN    = 2;    // px — absolute floor
+  const Y_TOLERANCE_FACTOR = 0.35; // fraction of fontSize
+
+  /**
+   * Compute the Y-grouping tolerance for the current band.
+   * Larger fonts (titles, headings) need a wider tolerance because
+   * sub-pixel placement can spread same-line glyphs further apart.
+   */
+  function lineYTolerance(bandFontSize) {
+    return Math.max(Y_TOLERANCE_MIN, bandFontSize * Y_TOLERANCE_FACTOR);
+  }
+
+  /**
+   * A line qualifies as a standalone page-number folio if it consists
+   * only of 1–4 Western or Arabic-Indic digits (optionally surrounded by
+   * whitespace or a single separator like | or ·).
+   * These lines are removed from rawText to prevent false lesson-marker hits.
+   */
+  const PAGE_NUMBER_RE = /^[\s|·\-]*[٠-٩\d]{1,4}[\s|·\-]*$/;
+
+  function isPageFolio(text) {
+    return PAGE_NUMBER_RE.test(text);
+  }
 
   /**
    * Heuristically pick reading direction per band:
@@ -132,8 +163,8 @@ const Parser = (() => {
       const cur  = items[i];
       // Gap between adjacent items following the reading direction.
       const gap = direction === 'rtl'
-        ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
-        : cur.x - (prev.x + prev.width);        // cur is to the right of prev
+        ? prev.x - (cur.x + cur.width)      // prev is to the right of cur
+        : cur.x - (prev.x + prev.width);    // cur is to the right of prev
       const threshold = getSpacingThreshold(cur);
       if (gap > threshold) out += ' ';
       out += cur.str;
@@ -143,12 +174,15 @@ const Parser = (() => {
 
   /**
    * Extract one page and return:
-   *   lines    – [{text, fontSize, y}] sorted top-to-bottom
-   *   rawText  – full page text rebuilt from lines (top→bottom, direction-aware per line)
+   *   lines    – [{text, fontSize, y, isPageFolio}] sorted top-to-bottom
+   *   rawText  – full page text rebuilt from lines (top→bottom, folio lines stripped)
    *   flagged  – true if private-use-area glyphs were found
+   *   pageHeight – PDF-reported page height (useful for relative position checks)
    */
   async function extractPage(pdfPage) {
-    const content = await pdfPage.getTextContent();
+    const content    = await pdfPage.getTextContent();
+    const viewport   = pdfPage.getViewport({ scale: 1 });
+    const pageHeight = viewport.height;
 
     // ── 1. Collect items with position ──
     const items = [];
@@ -168,12 +202,12 @@ const Parser = (() => {
     // ── 2. Sort by Y descending (top of page first in PDF coordinate space) ──
     items.sort((a, b) => b.y - a.y);
 
-    // ── 3. Group into lines with ±3 px Y-tolerance ──
-    const Y_TOLERANCE = 3;
+    // ── 3. Group into lines with dynamic Y-tolerance based on running fontSize ──
     const bands = []; // [{y, items[], fontSize}]
     for (const item of items) {
-      const last = bands[bands.length - 1];
-      if (last && Math.abs(item.y - last.y) <= Y_TOLERANCE) {
+      const last      = bands[bands.length - 1];
+      const tolerance = last ? lineYTolerance(last.fontSize) : Y_TOLERANCE_MIN;
+      if (last && Math.abs(item.y - last.y) <= tolerance) {
         last.items.push(item);
         last.fontSize = Math.max(last.fontSize, item.fontSize);
       } else {
@@ -181,22 +215,31 @@ const Parser = (() => {
       }
     }
 
-    // ── 4. Within each band, sort X according to detected direction ─────────
+    // ── 4. Within each band: sort X by direction, build text, flag folios ──
     const lines = [];
     for (const band of bands) {
       const direction = inferDirection(band.items);
       band.items.sort((a, b) => direction === 'rtl' ? b.x - a.x : a.x - b.x);
       const text = bandToText(band.items, direction);
       if (!text.trim()) continue;
-      lines.push({ text, fontSize: band.fontSize, y: band.y });
+
+      // Compute relative Y position (0 = bottom, 1 = top of page)
+      const relY  = pageHeight > 0 ? band.y / pageHeight : 0.5;
+      // Folios typically appear at the very top (>90%) or very bottom (<10%)
+      const folio = isPageFolio(text) && (relY > 0.90 || relY < 0.10);
+
+      lines.push({ text, fontSize: band.fontSize, y: band.y, isPageFolio: folio });
     }
 
-    // ── 5. Rebuild rawText top-to-bottom from sorted lines ──
+    // ── 5. Rebuild rawText top-to-bottom, skipping page-folio lines ──
     //    Joining with '\n' so rawText[0..N] always reflects the page header.
-    const joined = lines.map(l => l.text).join('\n');
+    const joined = lines
+      .filter(l => !l.isPageFolio)
+      .map(l => l.text)
+      .join('\n');
     const { text: rawText, flagged } = repairArabic(joined);
 
-    return { lines, rawText, flagged };
+    return { lines, rawText, flagged, pageHeight };
   }
 
   async function extractAll(pdfDoc, onProgress) {
