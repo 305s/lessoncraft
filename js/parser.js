@@ -93,10 +93,17 @@ const Parser = (() => {
 
   const ARABIC_LETTER_RE = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
 
+  /**
+   * Heuristically pick reading direction per band:
+   * RTL when any Arabic letters are present, otherwise LTR (Latin/math).
+   */
   function inferDirection(items) {
     const text = items.map(it => it.str).join('');
     return ARABIC_LETTER_RE.test(text) ? 'rtl' : 'ltr';
   }
+
+  const spacingThreshold = item =>
+    (item.str.length > 0 ? item.width / item.str.length : item.width) * 0.5;
 
   /**
    * Merge adjacent items in a band into a string.
@@ -116,7 +123,7 @@ const Parser = (() => {
       const gap = direction === 'rtl'
         ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
         : cur.x - (prev.x + prev.width);        // cur is to the right of prev
-      const threshold = (cur.str.length > 0 ? cur.width / cur.str.length : cur.width) * 0.5;
+      const threshold = spacingThreshold(cur);
       if (gap > threshold) out += ' ';
       out += cur.str;
     }
