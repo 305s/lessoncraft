@@ -1,6 +1,34 @@
 /**
- * parser.js
+ * parser.js — v2
  * PDF loading, page extraction, and Arabic text repair.
+ *
+ * Arabic-textbook parsing strategy (best practices):
+ *
+ *  1. Collect every text item with its exact (x, y, fontSize) from pdf.js.
+ *
+ *  2. GROUP into visual lines with Y-tolerance ±3 px.
+ *     Arabic glyphs on the same baseline can differ by 1-2 px due to
+ *     sub-pixel rendering; exact-Y grouping incorrectly splits one visual
+ *     line into many fragments.
+ *
+ *  3. SORT items within each line by X DESCENDING (right-to-left).
+ *     Arabic is read RTL, so the rightmost glyph cluster is logically first.
+ *     This correctly orders Arabic words whether the PDF content stream
+ *     stored them in visual order (right→left) or physical order (left→right).
+ *
+ *  4. JOIN items with a thin-space separator only when a gap between
+ *     adjacent items is wider than the average glyph width, preventing
+ *     words from running together while avoiding spurious spaces inside
+ *     ligatures.
+ *
+ *  5. REBUILD rawText by joining lines TOP-TO-BOTTOM.
+ *     Because PDF Y=0 is at the page bottom, lines are sorted by
+ *     descending Y.  This guarantees rawText[0..N] is always the page
+ *     header — the detector relies on this for lesson/chapter detection.
+ *
+ *  6. Apply Arabic repair (NFKC normalise → expand Arabic presentation
+ *     forms → strip bidi controls → replace private-use glyphs).
+ *
  * Depends on: pdfjsLib (loaded globally via CDN)
  */
 
@@ -8,6 +36,8 @@ const Parser = (() => {
 
   // ── Arabic Text Repair ────────────────────────────────────────────────────
 
+  // Arabic presentation forms (FB50-FDFF, FE70-FEFF) are legacy encoding
+  // artefacts; NFKC expands them to canonical Arabic base characters.
   function nfkcNormalize(str) {
     return str.normalize('NFKC');
   }
@@ -26,17 +56,17 @@ const Parser = (() => {
 
   function cleanText(str) {
     return str
-      .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, '') // zero-width + bidi marks
-      .replace(/\.{4,}/g, ' … ')                           // dotted leaders
-      .replace(/\s{2,}/g, ' ')
+      .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, '') // zero-width + bidi controls
+      .replace(/\.{4,}/g, ' … ')                           // dotted leaders → ellipsis
+      .replace(/[ \t]{2,}/g, ' ')                          // collapse horizontal whitespace
       .trim();
   }
 
   function repairArabic(rawText) {
-    const flagged = hasPrivateUseGlyphs(rawText);
+    const flagged  = hasPrivateUseGlyphs(rawText);
     const replaced = replacePrivateGlyphs(rawText);
     const normalized = nfkcNormalize(replaced);
-    const cleaned = cleanText(normalized);
+    const cleaned  = cleanText(normalized);
     return { text: cleaned, flagged };
   }
 
@@ -47,31 +77,85 @@ const Parser = (() => {
     return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   }
 
+  // ── Page Extraction ───────────────────────────────────────────────────────
+
   /**
-   * Extract one page. Groups items by Y-coordinate into lines.
-   * Preserves fontSize per line — used by detector for heading detection.
+   * Merge adjacent items in a sorted (X-desc) band into a string.
+   * Inserts a space only when the gap between two items is larger than
+   * half the current item's glyph width, avoiding both word-run-together
+   * and spurious spaces inside Arabic ligatures.
+   */
+  function bandToText(items) {
+    if (items.length === 0) return '';
+    let out = items[0].str;
+    for (let i = 1; i < items.length; i++) {
+      const prev = items[i - 1];
+      const cur  = items[i];
+      // Gap between right edge of current item and left edge of previous item
+      // (items are X-descending: prev is to the right of cur)
+      const gap = prev.x - (cur.x + cur.width);
+      const threshold = (cur.str.length > 0 ? cur.width / cur.str.length : cur.width) * 0.5;
+      if (gap > threshold) out += ' ';
+      out += cur.str;
+    }
+    return out;
+  }
+
+  /**
+   * Extract one page and return:
+   *   lines    – [{text, fontSize, y}] sorted top-to-bottom
+   *   rawText  – full page text rebuilt from lines (top→bottom, RTL within line)
+   *   flagged  – true if private-use-area glyphs were found
    */
   async function extractPage(pdfPage) {
     const content = await pdfPage.getTextContent();
-    let rawText = '';
-    const lineMap = {};
 
+    // ── 1. Collect items with position ──
+    const items = [];
     for (const item of content.items) {
       if (!item.str) continue;
-      const fontSize = Math.abs(item.transform[3]);
-      const y = Math.round(item.transform[5]);
-      rawText += item.str + ' ';
-      if (!lineMap[y]) lineMap[y] = { text: '', fontSize: 0, y };
-      lineMap[y].text += item.str;
-      lineMap[y].fontSize = Math.max(lineMap[y].fontSize, fontSize);
+      const w = item.width !== undefined ? Math.abs(item.width) : Math.abs(item.transform[0]);
+      items.push({
+        str:      item.str,
+        x:        item.transform[4],
+        y:        item.transform[5],
+        width:    w,
+        fontSize: Math.abs(item.transform[3]),
+      });
+    }
+    if (items.length === 0) return { lines: [], rawText: '', flagged: false };
+
+    // ── 2. Sort by Y descending (top of page first in PDF coordinate space) ──
+    items.sort((a, b) => b.y - a.y);
+
+    // ── 3. Group into lines with ±3 px Y-tolerance ──
+    const Y_TOLERANCE = 3;
+    const bands = []; // [{y, items[], fontSize}]
+    for (const item of items) {
+      const last = bands[bands.length - 1];
+      if (last && Math.abs(item.y - last.y) <= Y_TOLERANCE) {
+        last.items.push(item);
+        last.fontSize = Math.max(last.fontSize, item.fontSize);
+      } else {
+        bands.push({ y: item.y, items: [item], fontSize: item.fontSize });
+      }
     }
 
-    const lines = Object.values(lineMap)
-      .filter(l => l.text.trim())
-      .sort((a, b) => b.y - a.y);   // top to bottom
+    // ── 4. Within each band, sort X descending (RTL: rightmost item first) ──
+    const lines = [];
+    for (const band of bands) {
+      band.items.sort((a, b) => b.x - a.x);
+      const text = bandToText(band.items);
+      if (!text.trim()) continue;
+      lines.push({ text, fontSize: band.fontSize, y: band.y });
+    }
 
-    const { text, flagged } = repairArabic(rawText);
-    return { lines, rawText: text, flagged };
+    // ── 5. Rebuild rawText top-to-bottom from sorted lines ──
+    //    Joining with '\n' so rawText[0..N] always reflects the page header.
+    const joined = lines.map(l => l.text).join('\n');
+    const { text: rawText, flagged } = repairArabic(joined);
+
+    return { lines, rawText, flagged };
   }
 
   async function extractAll(pdfDoc, onProgress) {
@@ -79,7 +163,7 @@ const Parser = (() => {
     const pages = [];
     for (let i = 1; i <= total; i++) {
       const pdfPage = await pdfDoc.getPage(i);
-      const data = await extractPage(pdfPage);
+      const data    = await extractPage(pdfPage);
       pages.push({ pageNum: i, ...data });
       if (onProgress) onProgress(i, total);
     }
