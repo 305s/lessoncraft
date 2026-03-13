@@ -92,7 +92,7 @@ const Parser = (() => {
   // ── Page Extraction ───────────────────────────────────────────────────────
 
   // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
-  const ARABIC_LETTERS_REGEX = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  const ARABIC_LETTERS_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
   const SPACING_THRESHOLD_MULTIPLIER = 0.5; // half glyph width yields readable word separation without splitting ligatures
 
   /**
@@ -100,8 +100,7 @@ const Parser = (() => {
    * RTL when any Arabic letters are present, otherwise LTR (Latin/math).
    */
   function inferDirection(items) {
-    const text = items.map(it => it.str).join('');
-    return ARABIC_LETTERS_REGEX.test(text) ? 'rtl' : 'ltr';
+    return items.some(it => ARABIC_LETTERS_PATTERN.test(it.str)) ? 'rtl' : 'ltr';
   }
 
   /**
@@ -111,7 +110,8 @@ const Parser = (() => {
   function getSpacingThreshold(item) {
     // Empty strings (e.g., whitespace glyphs) fall back to the raw item width.
     const avgGlyphWidth = item.str.length === 0 ? item.width : item.width / item.str.length;
-    return avgGlyphWidth * SPACING_THRESHOLD_MULTIPLIER;
+    const safeWidth = Math.max(avgGlyphWidth || 0, 0.1); // prevent zero-width glyphs from zeroing the threshold
+    return safeWidth * SPACING_THRESHOLD_MULTIPLIER;
   }
 
   /**
