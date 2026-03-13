@@ -91,8 +91,8 @@ const Parser = (() => {
 
   // ── Page Extraction ───────────────────────────────────────────────────────
 
-  // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
-  const ARABIC_LETTER_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B + presentation forms (ligatures such as "لا")
+  const ARABIC_LETTER_PATTERN = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   const SPACING_THRESHOLD_MULTIPLIER = 0.5; // empirically: half glyph width keeps words separated without breaking ligatures in tested textbooks
   const MIN_GLYPH_WIDTH = 0.1; // px — prevents zero-width glyphs from eliminating inter-item spacing
 
