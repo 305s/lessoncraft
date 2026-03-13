@@ -90,9 +90,24 @@ const Parser = (() => {
 
   // ── PDF Loading ───────────────────────────────────────────────────────────
 
+  // Base URL of the pdf.js release used in index.html — keep in sync with the CDN version there.
+  const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+
   async function loadPDF(file) {
     const arrayBuffer = await file.arrayBuffer();
-    return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    return pdfjsLib.getDocument({
+      data: arrayBuffer,
+      // CMap files let pdf.js decode character codes in PDFs that rely on
+      // Adobe standard CMaps (common in Arabic and other non-Latin textbooks).
+      // Without these, pdf.js cannot map glyph IDs to Unicode and falls back
+      // to Private-Use-Area placeholders, causing garbled / missing text.
+      cMapUrl:             PDFJS_CDN_BASE + 'cmaps/',
+      cMapPacked:          true,
+      // Standard font data lets pdf.js measure/render PDFs that reference
+      // built-in PostScript fonts (Courier, Helvetica, Times, Symbol …)
+      // without embedding them, improving layout fidelity.
+      standardFontDataUrl: PDFJS_CDN_BASE + 'standard_fonts/',
+    }).promise;
   }
 
   // ── Page Extraction ───────────────────────────────────────────────────────
