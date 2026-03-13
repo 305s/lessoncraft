@@ -1,178 +1,228 @@
-/* ── Fonts ───────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap');
 
 :root {
-  --ink:      #1a1612;
-  --sand:     #f5f0e8;
-  --warm:     #ede5d4;
-  --gold:     #b5862a;
-  --gold-lt:  #d4a843;
-  --rust:     #8b3a2a;
-  --sage:     #3d5a4a;
-  --border:   #c8bfaa;
+  --ink:       #1a1612;
+  --sand:      #f5f0e8;
+  --warm:      #ede5d4;
+  --gold:      #b5862a;
+  --gold-lt:   #d4a843;
+  --rust:      #8b3a2a;
+  --sage:      #3d5a4a;
+  --border:    #c8bfaa;
   --font-body:   'Lora', 'Noto Naskh Arabic', Georgia, serif;
   --font-arabic: 'Noto Naskh Arabic', 'Lora', serif;
   --font-mono:   'IBM Plex Mono', monospace;
-  --sidebar-w:  240px;
-  --chapter-w:  190px;
-  --topbar-h:   52px;
-  --radius:     6px;
+  --radius: 6px;
   --transition: 180ms ease;
+
+  /* Layout constants — must match JS */
+  --topbar-h:  52px;
+  --sidebar-w: 220px;
+  --chapter-w: 180px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--sand); font-family: var(--font-body); color: var(--ink); }
 
-/* No scroll on body at all — JS controls all heights explicitly */
-html, body { height: 100%; overflow: hidden; background: var(--sand); }
-body { font-family: var(--font-body); color: var(--ink); }
-
-/* ── Topbar — fixed at top ───────────────────────────────────────────────── */
+/* ── Topbar ───────────────────────────────────────────────── */
 .topbar {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--topbar-h);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
+  z-index: 200;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
   background: var(--ink);
-  color: var(--sand);
   border-bottom: 3px solid var(--gold);
   gap: 12px;
+  color: var(--sand);
 }
 .topbar-brand { display: flex; align-items: baseline; gap: 10px; }
-#appName { font-family: var(--font-mono); font-weight: 600; font-size: 1.05rem; letter-spacing: 0.08em; color: var(--gold-lt); }
-#appTagline { font-size: 0.74rem; color: #9e9282; font-style: italic; }
+#appName { font-family: var(--font-mono); font-weight: 600; font-size: 1rem; letter-spacing: .08em; color: var(--gold-lt); }
+#appTagline { font-size: .72rem; color: #9e9282; font-style: italic; }
 .topbar-actions { display: flex; gap: 8px; }
 
-/* ── Body grid — positioned below topbar by JS ───────────────────────────── */
-.body-grid {
-  position: fixed;
-  top: var(--topbar-h);
-  left: 0; right: 0;
-  /* bottom is set by JS to window.innerHeight */
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  overflow: hidden;
-}
-
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* ── Sidebar ──────────────────────────────────────────────── */
 .sidebar {
-  display: flex;
-  flex-direction: column;
+  position: fixed;
+  top: var(--topbar-h); bottom: 0;
+  /* JS sets left/right based on dir */
+  width: var(--sidebar-w);
+  z-index: 100;
+  display: flex; flex-direction: column;
   background: var(--warm);
   border-inline-end: 1px solid var(--border);
-  height: 100%;
-  overflow: hidden;
 }
+[dir="rtl"] .sidebar { right: 0; }
+[dir="ltr"] .sidebar { left: 0; }
+
 .sidebar-header {
   flex-shrink: 0;
   padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.sidebar-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #7a6e5e; }
-#storageInfo { font-size: 0.66rem; color: #9e9282; font-family: var(--font-mono); }
-#bookList { flex: 1; overflow-y: scroll; -webkit-overflow-scrolling: touch; padding: 6px 0; }
+.sidebar-label { font-size: .68rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #7a6e5e; }
+#storageInfo { font-size: .65rem; color: #9e9282; font-family: var(--font-mono); }
+
+/* bookList: takes remaining sidebar height, scrolls */
+#bookList {
+  flex: 1;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 0;
+}
 .book-item { padding: 9px 14px; cursor: pointer; border-inline-start: 3px solid transparent; transition: background var(--transition); }
-.book-item:hover { background: rgba(181,134,42,0.08); }
-.book-item.active { background: rgba(181,134,42,0.12); border-inline-start-color: var(--gold); }
-.book-name { display: block; font-size: 0.84rem; font-family: var(--font-arabic); line-height: 1.4; }
-.book-meta { display: block; font-size: 0.68rem; color: #7a6e5e; font-family: var(--font-mono); margin-top: 2px; }
+.book-item:hover { background: rgba(181,134,42,.08); }
+.book-item.active { background: rgba(181,134,42,.12); border-inline-start-color: var(--gold); }
+.book-name { display: block; font-size: .84rem; font-family: var(--font-arabic); line-height: 1.4; }
+.book-meta { display: block; font-size: .66rem; color: #7a6e5e; font-family: var(--font-mono); margin-top: 2px; }
 
-/* ── Main content ────────────────────────────────────────────────────────── */
-.main-content { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+/* ── Main area ────────────────────────────────────────────── */
+.main-area {
+  position: fixed;
+  top: var(--topbar-h); bottom: 0;
+  [dir="rtl"] & { right: var(--sidebar-w); left: 0; }
+}
+[dir="rtl"] .main-area { right: var(--sidebar-w); left: 0; }
+[dir="ltr"] .main-area { left: var(--sidebar-w); right: 0; }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
-.btn { font-family: var(--font-body); font-size: 0.8rem; padding: 6px 14px; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; transition: background var(--transition), color var(--transition); white-space: nowrap; }
+/* ── Upload panel ─────────────────────────────────────────── */
+#uploadPanel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px 20px; gap: 18px;
+  overflow-y: scroll; -webkit-overflow-scrolling: touch;
+}
+#uploadPanel.hidden { display: none; }
+#uploadTitle { font-size: 1.2rem; font-weight: 600; }
+#dropzone {
+  width: 100%; max-width: 440px;
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 40px 20px; text-align: center; cursor: pointer;
+  background: var(--warm);
+  transition: border-color var(--transition), background var(--transition);
+}
+#dropzone:hover, #dropzone.drag-over { border-color: var(--gold); background: rgba(181,134,42,.06); }
+.dropzone-icon { font-size: 2rem; margin-bottom: 8px; }
+#uploadHint { color: #7a6e5e; font-size: .84rem; }
+#metaForm {
+  width: 100%; max-width: 440px;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; display: flex; flex-direction: column; gap: 14px;
+}
+#metaForm.hidden { display: none; }
+#metaFileName { font-family: var(--font-mono); font-size: .72rem; color: #7a6e5e; word-break: break-all; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-label { font-size: .74rem; font-weight: 600; color: #5a4e3e; }
+.form-input { font-family: var(--font-arabic); font-size: .9rem; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--sand); color: var(--ink); direction: auto; }
+.form-input:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+
+/* ── Progress panel ───────────────────────────────────────── */
+#progressPanel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 40px;
+}
+#progressPanel.hidden { display: none; }
+.progress-track { width: 100%; max-width: 380px; height: 6px; background: var(--warm); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+#progressBar { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt)); border-radius: 99px; width: 0%; transition: width 200ms ease; }
+#progressLabel { font-family: var(--font-mono); font-size: .78rem; color: #7a6e5e; }
+
+/* ── Viewer panel ─────────────────────────────────────────── */
+#viewerPanel {
+  position: absolute; inset: 0;
+}
+#viewerPanel.hidden { display: none; }
+
+/* viewer-header: fixed inside viewer, known height */
+.viewer-header {
+  position: absolute; top: 0; left: 0; right: 0;
+  /* height auto — JS reads this to position children */
+  padding: 12px 16px;
+  background: #fff; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  z-index: 10;
+}
+.viewer-title-group { display: flex; flex-direction: column; gap: 2px; }
+#bookTitle { font-family: var(--font-arabic); font-size: 1rem; font-weight: 600; }
+#bookSubtitle { font-size: .74rem; color: #7a6e5e; }
+.viewer-actions { display: flex; gap: 6px; }
+
+/* chapter column: JS sets top/bottom */
+.chapter-col {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; /* JS overrides left/right/width based on dir */
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  background: var(--warm);
+  border-inline-end: 1px solid var(--border);
+  width: var(--chapter-w);
+}
+[dir="rtl"] .chapter-col { right: 0; left: auto; }
+[dir="ltr"] .chapter-col { left: 0; right: auto; }
+
+.col-heading { padding: 8px 12px; font-size: .65rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #9e9282; position: sticky; top: 0; background: var(--warm); border-bottom: 1px solid var(--border); }
+.chapter-item { padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-inline-start: 3px solid transparent; transition: background var(--transition); font-size: .84rem; }
+.chapter-item:hover { background: rgba(181,134,42,.08); }
+.chapter-item.active { background: rgba(181,134,42,.14); border-inline-start-color: var(--gold); font-weight: 600; }
+.ch-lesson-count { font-size: .64rem; color: #9e9282; font-family: var(--font-mono); }
+
+/* lesson column: JS sets top/bottom/left/right */
+.lesson-col {
+  position: absolute;
+  bottom: 0;
+}
+[dir="rtl"] .lesson-col { left: 0; right: var(--chapter-w); }
+[dir="ltr"] .lesson-col { right: 0; left: var(--chapter-w); }
+
+/* tabs: fixed inside lesson col */
+#lessonTabs {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; background: var(--warm); border-bottom: 1px solid var(--border);
+  overflow-x: scroll; -webkit-overflow-scrolling: touch;
+  padding: 0 4px; z-index: 5;
+}
+.lesson-tab { font-family: var(--font-body); font-size: .78rem; padding: 9px 14px; background: transparent; border: none; border-bottom: 3px solid transparent; cursor: pointer; color: #7a6e5e; white-space: nowrap; transition: color var(--transition), border-color var(--transition); }
+.lesson-tab:hover { color: var(--ink); }
+.lesson-tab.active { color: var(--ink); border-bottom-color: var(--gold); font-weight: 600; }
+
+/*
+ * THE SCROLL CONTAINER
+ * position:absolute + inset from JS = Safari-proof vertical scroll
+ * overflow-y:scroll (not auto) + -webkit-overflow-scrolling:touch = iOS momentum
+ */
+#lessonContent {
+  position: absolute;
+  left: 0; right: 0;
+  /* top and bottom set by JS after measuring tabs height */
+  overflow-y: scroll;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* ── Content blocks ───────────────────────────────────────── */
+.page-range { font-family: var(--font-mono); font-size: .68rem; color: #9e9282; }
+.flagged-warning { background: #fff8e6; border: 1px solid #e8c84a; border-radius: var(--radius); padding: 10px 14px; font-size: .78rem; color: #6b5500; }
+.section-block { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.section-label { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; background: var(--warm); padding: 6px 14px; color: var(--sage); border-bottom: 1px solid var(--border); }
+.section-text { padding: 14px 16px; font-family: var(--font-arabic); font-size: .94rem; line-height: 2; color: var(--ink); white-space: pre-wrap; word-break: break-word; direction: rtl; text-align: right; }
+.empty-hint { padding: 10px; color: #9e9282; font-size: .8rem; }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn { font-family: var(--font-body); font-size: .78rem; padding: 6px 12px; border-radius: var(--radius); border: 1px solid transparent; cursor: pointer; transition: background var(--transition), color var(--transition); white-space: nowrap; }
 .btn-ghost { background: transparent; border-color: #4a4238; color: #c8bfaa; }
 .btn-ghost:hover { background: #2a2420; color: var(--sand); }
 .btn-gold { background: var(--gold); color: #fff; font-weight: 600; }
 .btn-gold:hover { background: var(--gold-lt); }
 .btn-sage { background: var(--sage); color: #fff; }
 .btn-sage:hover { background: #4d6e5a; }
-.btn-rust { background: transparent; color: var(--rust); border-color: var(--rust); font-size: 0.76rem; }
+.btn-rust { background: transparent; color: var(--rust); border-color: var(--rust); font-size: .74rem; }
 .btn-rust:hover { background: var(--rust); color: #fff; }
 
-/* ── Upload panel ────────────────────────────────────────────────────────── */
-#uploadPanel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 20px; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
-#uploadPanel.hidden { display: none; }
-#uploadTitle { font-size: 1.3rem; font-weight: 600; }
-#dropzone { width: 100%; max-width: 460px; border: 2px dashed var(--border); border-radius: 12px; padding: 44px 24px; text-align: center; cursor: pointer; background: var(--warm); transition: border-color var(--transition), background var(--transition); }
-#dropzone:hover, #dropzone.drag-over { border-color: var(--gold); background: rgba(181,134,42,0.06); }
-.dropzone-icon { font-size: 2.2rem; margin-bottom: 10px; }
-#uploadHint { color: #7a6e5e; font-size: 0.86rem; }
-#metaForm { width: 100%; max-width: 460px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
-#metaForm.hidden { display: none; }
-#metaFileName { font-family: var(--font-mono); font-size: 0.74rem; color: #7a6e5e; word-break: break-all; }
-.form-group { display: flex; flex-direction: column; gap: 4px; }
-.form-label { font-size: 0.76rem; font-weight: 600; color: #5a4e3e; }
-.form-input { font-family: var(--font-arabic); font-size: 0.9rem; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--sand); color: var(--ink); direction: auto; }
-.form-input:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
-
-/* ── Progress panel ──────────────────────────────────────────────────────── */
-#progressPanel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px; }
-#progressPanel.hidden { display: none; }
-.progress-track { width: 100%; max-width: 400px; height: 6px; background: var(--warm); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
-#progressBar { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-lt)); border-radius: 99px; width: 0%; transition: width 200ms ease; }
-#progressLabel { font-family: var(--font-mono); font-size: 0.8rem; color: #7a6e5e; }
-
-/* ── Viewer panel ────────────────────────────────────────────────────────── */
-#viewerPanel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-#viewerPanel.hidden { display: none; }
-.viewer-header { flex-shrink: 0; padding: 14px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; background: #fff; }
-.viewer-title-group { display: flex; flex-direction: column; gap: 2px; }
-#bookTitle { font-family: var(--font-arabic); font-size: 1.05rem; font-weight: 600; }
-#bookSubtitle { font-size: 0.76rem; color: #7a6e5e; }
-.viewer-actions { display: flex; gap: 6px; }
-
-/* ── Viewer body ─────────────────────────────────────────────────────────── */
-.viewer-body {
-  display: grid;
-  grid-template-columns: var(--chapter-w) 1fr;
-  flex: 1;
-  /* height is set explicitly by JS */
-  overflow: hidden;
-}
-
-/* Chapter sidebar */
-.chapter-sidebar { background: var(--warm); border-inline-end: 1px solid var(--border); height: 100%; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
-.section-heading { padding: 8px 12px; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #9e9282; position: sticky; top: 0; background: var(--warm); border-bottom: 1px solid var(--border); }
-.chapter-item { padding: 9px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; border-inline-start: 3px solid transparent; transition: background var(--transition); font-size: 0.86rem; }
-.chapter-item:hover { background: rgba(181,134,42,0.08); }
-.chapter-item.active { background: rgba(181,134,42,0.14); border-inline-start-color: var(--gold); font-weight: 600; }
-.ch-lesson-count { font-size: 0.66rem; color: #9e9282; font-family: var(--font-mono); }
-
-/* ── Lesson area ─────────────────────────────────────────────────────────── */
-.lesson-area { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-#lessonTabs { flex-shrink: 0; display: flex; background: var(--warm); border-bottom: 1px solid var(--border); overflow-x: scroll; -webkit-overflow-scrolling: touch; padding: 0 4px; }
-.lesson-tab { font-family: var(--font-body); font-size: 0.8rem; padding: 9px 14px; background: transparent; border: none; border-bottom: 3px solid transparent; cursor: pointer; color: #7a6e5e; white-space: nowrap; transition: color var(--transition), border-color var(--transition); }
-.lesson-tab:hover { color: var(--ink); }
-.lesson-tab.active { color: var(--ink); border-bottom-color: var(--gold); font-weight: 600; }
-
-/* THE scroll container — height set by JS */
-#lessonContent {
-  overflow-y: scroll;
-  -webkit-overflow-scrolling: touch;
-  padding: 18px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  /* Explicit height injected by JS — this is the key */
-}
-
-/* ── Content blocks ──────────────────────────────────────────────────────── */
-.page-range { font-family: var(--font-mono); font-size: 0.7rem; color: #9e9282; }
-.flagged-warning { background: #fff8e6; border: 1px solid #e8c84a; border-radius: var(--radius); padding: 10px 14px; font-size: 0.8rem; color: #6b5500; }
-.section-block { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: var(--warm); padding: 6px 14px; color: var(--sage); border-bottom: 1px solid var(--border); }
-.section-text { padding: 14px 16px; font-family: var(--font-arabic); font-size: 0.95rem; line-height: 2; color: var(--ink); white-space: pre-wrap; word-break: break-word; direction: rtl; text-align: right; }
-.empty-hint { padding: 10px 14px; color: #9e9282; font-size: 0.8rem; }
-
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
 .hidden { display: none !important; }
