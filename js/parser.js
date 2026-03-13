@@ -111,7 +111,7 @@ const Parser = (() => {
   function getSpacingThreshold(item) {
     // Empty strings (e.g., whitespace glyphs) fall back to the raw item width.
     const avgGlyphWidth = item.str.length === 0 ? item.width : item.width / item.str.length;
-    const safeWidth = Math.max(avgGlyphWidth || 0, MIN_GLYPH_WIDTH); // prevent zero-width glyphs from zeroing out the threshold
+    const safeWidth = Math.max(avgGlyphWidth ?? 0, MIN_GLYPH_WIDTH); // prevent zero-width glyphs from zeroing out the threshold
     return safeWidth * SPACING_THRESHOLD_MULTIPLIER;
   }
 
