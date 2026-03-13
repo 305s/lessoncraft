@@ -92,7 +92,8 @@ const Parser = (() => {
   // ── Page Extraction ───────────────────────────────────────────────────────
 
   // Arabic letters only (excludes digits): basic Arabic + Arabic Extended-A/B ranges used in textbooks
-  const ARABIC_LETTER_RE = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  const ARABIC_LETTER_REGEX = /[\u0621-\u063A\u0641-\u064A\u0671-\u06D3\u06FA-\u06FF]/;
+  const SPACING_THRESHOLD_MULTIPLIER = 0.5; // half glyph width yields readable word separation without splitting ligatures
 
   /**
    * Heuristically pick reading direction per band:
@@ -100,7 +101,7 @@ const Parser = (() => {
    */
   function inferDirection(items) {
     const text = items.map(it => it.str).join('');
-    return ARABIC_LETTER_RE.test(text) ? 'rtl' : 'ltr';
+    return ARABIC_LETTER_REGEX.test(text) ? 'rtl' : 'ltr';
   }
 
   /**
@@ -108,7 +109,7 @@ const Parser = (() => {
    * between two adjacent items, based on the current item's average glyph width.
    */
   const spacingThreshold = item =>
-    (item.str.length > 0 ? item.width / item.str.length : item.width) * 0.5;
+    (item.str.length > 0 ? item.width / item.str.length : item.width) * SPACING_THRESHOLD_MULTIPLIER;
 
   /**
    * Merge adjacent items in a band into a string.
@@ -118,7 +119,7 @@ const Parser = (() => {
    * half the current item's glyph width, avoiding both word-run-together
    * and spurious spaces inside Arabic ligatures.
    */
-  function bandToText(items, direction = 'rtl') {
+  function bandToText(items, direction) {
     if (items.length === 0) return '';
     let out = items[0].str;
     for (let i = 1; i < items.length; i++) {
