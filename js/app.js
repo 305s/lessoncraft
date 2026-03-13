@@ -342,7 +342,6 @@ const App = (() => {
     document.documentElement.setAttribute('lang', lang);
     document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
     renderAll();
-    Layout.apply();
   }
 
   function renderAll() {
