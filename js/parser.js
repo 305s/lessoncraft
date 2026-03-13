@@ -109,7 +109,8 @@ const Parser = (() => {
    * between two adjacent items, based on the current item's average glyph width.
    */
   function getSpacingThreshold(item) {
-    return (item.str.length > 0 ? item.width / item.str.length : item.width) * SPACING_THRESHOLD_MULTIPLIER;
+    const avgGlyphWidth = item.str.length === 0 ? item.width : item.width / item.str.length;
+    return avgGlyphWidth * SPACING_THRESHOLD_MULTIPLIER;
   }
 
   /**
@@ -130,7 +131,7 @@ const Parser = (() => {
       const gap = direction === 'rtl'
         ? prev.x - (cur.x + cur.width)          // prev is to the right of cur
         : cur.x - (prev.x + prev.width);        // cur is to the right of prev
-      const threshold = getSpacingThreshold(direction === 'rtl' ? cur : prev);
+      const threshold = getSpacingThreshold(prev);
       if (gap > threshold) out += ' ';
       out += cur.str;
     }
