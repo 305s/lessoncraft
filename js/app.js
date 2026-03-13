@@ -163,7 +163,9 @@ const App = (() => {
 
       // Step 3: Detect structure
       updateProgress(totalPages, totalPages, t('detecting'));
-      const { tree } = Detector.detect(pages, metadata);
+      const { tree, chapterMap } = Detector.detect(pages, metadata);
+      console.log("[LessonCraft] Chapter map:", JSON.stringify(chapterMap));
+      if (Object.keys(chapterMap).length === 0) console.warn("[LessonCraft] 26a0 No chapters detected!");
 
       // Step 4: Save
       const bookId = Store.saveBook(tree, file.name);
