@@ -70,8 +70,12 @@ const Parser = (() => {
       .filter(l => l.text.trim())
       .sort((a, b) => b.y - a.y);   // top to bottom
 
-    const { text, flagged } = repairArabic(rawText);
-    return { lines, rawText: text, flagged };
+    const { text, flagged: privateGlyphs } = repairArabic(rawText);
+    const cleaned = text.trim();
+    const isImageOnly = (content.items || []).length === 0;
+    const isEmpty = cleaned.length === 0;
+    const flagged = privateGlyphs || isImageOnly || isEmpty;
+    return { lines, rawText: text, flagged, needsOCR: isImageOnly || isEmpty };
   }
 
   async function extractAll(pdfDoc, onProgress) {
